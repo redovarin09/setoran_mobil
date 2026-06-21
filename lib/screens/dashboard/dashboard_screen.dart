@@ -195,13 +195,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Grand Total $_tahun',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                ),
-              ),
+              Text(
+  'Grand Total $_tahun',
+  style: const TextStyle(     // ← const pindah ke sini
+    color: Colors.white70,
+    fontSize: 13,
+  ),
+),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
