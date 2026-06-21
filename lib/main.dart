@@ -7,12 +7,17 @@ import 'screens/setoran/setoran_screen.dart';
 import 'screens/perbaikan/perbaikan_screen.dart';
 import 'screens/pengaturan/pengaturan_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('id_ID', null);
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
   runApp(const SetoranMobilApp());
 }
 
@@ -47,7 +52,6 @@ class SetoranMobilApp extends StatelessWidget {
         cardTheme: CardThemeData(
           color: AppColors.card,
           elevation: 2,
-          shadowColor: AppColors.primary.withOpacity(0.1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -128,14 +132,13 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (i) => setState(() => _currentIndex = i),
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
           selectedItemColor: AppColors.navSelected,
           unselectedItemColor: AppColors.navUnselected,
           selectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
+            fontWeight: FontWeight.w600, fontSize: 11,
           ),
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           elevation: 0,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_strings.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../models/setoran_model.dart';
@@ -52,7 +51,6 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
     _catatan    = e?.catatan    ?? '';
 
     // Default tanggal minggu ke-N bulan ini
-    final now = DateTime.now();
     final defaultDate = e?.tanggal ??
         '${(widget.mingguKe * 7 - 3).toString().padLeft(2, '0')}/'
         '${widget.bulan.toString().padLeft(2, '0')}/'
