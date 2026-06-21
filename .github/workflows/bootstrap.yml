@@ -1,0 +1,64 @@
+name: 🚀 Bootstrap Flutter Project
+
+on:
+  workflow_dispatch: # Hanya jalan jika dipicu manual
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Generate android/ folder
+        run: |
+          flutter create \
+            --org com.setoranmobil \
+            --project-name setoran_mobil \
+            /tmp/flutter_init
+          cp -r /tmp/flutter_init/android ./android
+
+      - name: Create placeholder main.dart
+        run: |
+          mkdir -p lib
+          cat > lib/main.dart << 'DART'
+          import 'package:flutter/material.dart';
+          void main() {
+            runApp(const MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: Text(
+                    'Setoran Mobil - Coming Soon',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ),
+              ),
+            ));
+          }
+          DART
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Commit hasil generate
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "bot@github.com"
+          git add .
+          git commit -m "chore: bootstrap Flutter android/ structure" \
+            || echo "Nothing new to commit"
+          git push
