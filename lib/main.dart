@@ -9,6 +9,7 @@ import 'screens/pengaturan/pengaturan_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null);
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);

@@ -28,6 +28,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Setup Python & generate icon
+        run: |
+          pip install pillow
+          python3 scripts/generate_icon.py
+
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
+
       - name: Analyze code
         run: flutter analyze --no-fatal-infos
         continue-on-error: true
@@ -35,9 +43,14 @@ jobs:
       - name: Build Release APK
         run: flutter build apk --release
 
+      - name: Rename APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/SetoranMobil-v${{ github.run_number }}.apk
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: setoran-mobil-v${{ github.run_number }}
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: SetoranMobil-v${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/SetoranMobil-v${{ github.run_number }}.apk
           retention-days: 30
