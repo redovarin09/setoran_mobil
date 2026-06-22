@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
@@ -21,7 +21,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   int _tahun = DateTime.now().year;
   bool _loading = false;
 
-  // ─── EXPORT / BACKUP JSON ──────────────────────────
+  // ─── EXPORT JSON ───────────────────────────────────
 
   Future<void> _exportBackup() async {
     setState(() => _loading = true);
@@ -37,7 +37,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Backup Setoran $_tahun',
+        text: 'Backup Setoran $_tahun — simpan file ini!',
         subject: fileName,
       );
     } catch (e) {
@@ -60,107 +60,415 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     }
   }
 
-  // ─── RESTORE — PILIH FILE DARI MANA SAJA ───────────
+  // ─── RESTORE — SCAN FILE ───────────────────────────
 
   Future<void> _restoreBackup() async {
-    try {
-      // Buka file picker — user bisa pilih dari Downloads,
-      // Drive, WhatsApp, folder mana saja
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        dialogTitle: 'Pilih file backup (.json)',
-      );
-
-      if (result == null || result.files.isEmpty) return;
-
-      final picked = result.files.first;
-      final path   = picked.path;
-
-      if (path == null) {
-        _showError('Tidak bisa membaca file. Coba pindahkan '
-            'file ke Downloads terlebih dahulu.');
-        return;
-      }
-
-      // Preview isi file sebelum restore
-      final content = await File(path).readAsString();
-      Map<String, dynamic> json;
-      try {
-        json = jsonDecode(content) as Map<String, dynamic>;
-      } catch (_) {
-        _showError('File bukan format backup yang valid.');
-        return;
-      }
-
-      // Tampilkan info backup
-      final tahunBackup = json['tahun'] ?? '?';
-      final sisaBackup  = json['sisa_tahun_lalu'] ?? 0;
-      final jmlSetoran  =
-          (json['setoran'] as List?)?.length ?? 0;
-      final jmlPerbaikan =
-          (json['perbaikan'] as List?)?.length ?? 0;
-      final exportedAt  = json['exported_at'] ?? '-';
-
-      if (!mounted) return;
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Konfirmasi Restore'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _infoRow('File', picked.name),
-              _infoRow('Tahun', '$tahunBackup'),
-              _infoRow('Sisa Tahun Lalu',
-                  CurrencyFormatter.format(sisaBackup as int)),
-              _infoRow('Data Setoran', '$jmlSetoran entri'),
-              _infoRow('Data Perbaikan',
-                  '$jmlPerbaikan entri'),
-              _infoRow('Dibuat', exportedAt
-                  .toString()
-                  .substring(0, 10)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.warningLight,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '⚠️ Data tahun $tahunBackup yang ada '
-                  'saat ini akan digantikan.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.warning,
-                  ),
-                ),
+    // Tampilkan pilihan cara restore
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Pilih Cara Restore',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Batal'),
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary),
-              child: const Text('Restore',
-                  style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 4),
+            const Text(
+              'Pilih file backup yang sudah disimpan sebelumnya',
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.textLight),
+            ),
+            const SizedBox(height: 16),
+
+            // Opsi 1: Scan Downloads
+            ListTile(
+              onTap: () {
+                Navigator.pop(context);
+                _restoreFromDownloads();
+              },
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.folder_open,
+                    color: AppColors.primary),
+              ),
+              title: const Text('Scan Folder Downloads',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text(
+                  'Cari file .json di /storage/Download'),
+              trailing: const Icon(Icons.chevron_right,
+                  color: AppColors.textLight),
+            ),
+
+            const Divider(height: 8),
+
+            // Opsi 2: Paste JSON
+            ListTile(
+              onTap: () {
+                Navigator.pop(context);
+                _restoreFromPaste();
+              },
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.paste,
+                    color: AppColors.success),
+              ),
+              title: const Text('Tempel (Paste) JSON',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text(
+                  'Buka file backup → Salin semua teks → Tempel di sini'),
+              trailing: const Icon(Icons.chevron_right,
+                  color: AppColors.textLight),
+            ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── RESTORE: SCAN DOWNLOADS ───────────────────────
+
+  Future<void> _restoreFromDownloads() async {
+    setState(() => _loading = true);
+
+    // Cari file JSON di semua kemungkinan path
+    final searchPaths = [
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/Downloads',
+      '/sdcard/Download',
+      '/sdcard/Downloads',
+    ];
+
+    // Juga cari di internal app docs
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      searchPaths.add(appDir.path);
+    } catch (_) {}
+
+    final List<File> found = [];
+    for (final path in searchPaths) {
+      try {
+        final dir = Directory(path);
+        if (await dir.exists()) {
+          final files = dir
+              .listSync()
+              .whereType<File>()
+              .where((f) =>
+                  f.path.endsWith('.json') &&
+                  f.path.contains('backup'))
+              .toList()
+            ..sort((a, b) =>
+                b.statSync().modified
+                    .compareTo(a.statSync().modified));
+          found.addAll(files);
+        }
+      } catch (_) {}
+    }
+
+    setState(() => _loading = false);
+
+    if (found.isEmpty) {
+      if (!mounted) return;
+      _showTidakDitemukan();
+      return;
+    }
+
+    // Tampilkan daftar file
+    if (!mounted) return;
+    final picked = await showDialog<File>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Pilih File Backup'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: found.length,
+            itemBuilder: (_, i) {
+              final f    = found[i];
+              final name = f.path.split('/').last;
+              final mod  = f.statSync().modified;
+              final tgl  =
+                  '${mod.day}/${mod.month}/${mod.year}';
+              return ListTile(
+                leading: const Icon(Icons.file_present,
+                    color: AppColors.primary),
+                title: Text(name,
+                    style: const TextStyle(fontSize: 13)),
+                subtitle: Text('Diubah: $tgl',
+                    style: const TextStyle(fontSize: 11)),
+                onTap: () => Navigator.pop(context, f),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+        ],
+      ),
+    );
+
+    if (picked != null) await _prosesRestore(picked);
+  }
+
+  void _showTidakDitemukan() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('File Tidak Ditemukan'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tidak ada file backup (.json) di folder Downloads.',
+              style: TextStyle(fontSize: 13),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Cara mendapatkan file backup:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              '1. Buka WhatsApp/Drive tempat file disimpan\n'
+              '2. Download file backup .json\n'
+              '3. Coba Restore lagi',
+              style: TextStyle(fontSize: 12),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Atau gunakan cara "Tempel JSON" jika file\n'
+              'sudah bisa dibuka di HP.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textLight,
+              ),
             ),
           ],
         ),
-      );
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _restoreFromPaste();
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success),
+            child: const Text('Tempel JSON',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
-      if (confirm != true) return;
+  // ─── RESTORE: PASTE JSON ───────────────────────────
 
-      setState(() => _loading = true);
+  Future<void> _restoreFromPaste() async {
+    final ctrl = TextEditingController();
+
+    // Coba auto-paste dari clipboard
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      if (data?.text != null && data!.text!.contains('"setoran"')) {
+        ctrl.text = data.text!;
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Tempel JSON Backup'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Buka file backup → pilih semua teks → salin → '
+              'kembali ke sini → tempel di kotak bawah.',
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.textLight),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              maxLines: 6,
+              decoration: const InputDecoration(
+                hintText: '{ "versi": 1, "tahun": 2026, ... }',
+                hintStyle: TextStyle(fontSize: 11),
+                isDense: true,
+                contentPadding: EdgeInsets.all(10),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final data =
+                  await Clipboard.getData(Clipboard.kTextPlain);
+              if (data?.text != null) ctrl.text = data!.text!;
+            },
+            child: const Text('📋 Paste'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, ctrl.text),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary),
+            child: const Text('Restore',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result.trim().isEmpty) return;
+
+    Map<String, dynamic> json;
+    try {
+      json = jsonDecode(result.trim()) as Map<String, dynamic>;
+    } catch (_) {
+      _showError(
+          'Teks bukan format JSON yang valid. '
+          'Pastikan menyalin seluruh isi file backup.');
+      return;
+    }
+
+    // Buat file sementara lalu proses
+    try {
+      final dir  = await getApplicationDocumentsDirectory();
+      final file = File(
+          '${dir.path}/restore_temp_${DateTime.now().millisecondsSinceEpoch}.json');
+      await file.writeAsString(result);
+      await _prosesRestore(file);
+      await file.delete();
+    } catch (e) {
+      _showError('Gagal restore: $e');
+    }
+  }
+
+  // ─── PROSES RESTORE INTI ───────────────────────────
+
+  Future<void> _prosesRestore(File file) async {
+    String content;
+    try {
+      content = await file.readAsString();
+    } catch (_) {
+      _showError(
+          'Tidak bisa membaca file. '
+          'Gunakan cara "Tempel JSON" sebagai alternatif.');
+      return;
+    }
+
+    Map<String, dynamic> json;
+    try {
+      json = jsonDecode(content) as Map<String, dynamic>;
+    } catch (_) {
+      _showError('File bukan format backup yang valid.');
+      return;
+    }
+
+    final tahunBackup   = json['tahun'] ?? '?';
+    final sisaBackup    = (json['sisa_tahun_lalu'] ?? 0) as int;
+    final jmlSetoran    = (json['setoran'] as List?)?.length ?? 0;
+    final jmlPerbaikan  =
+        (json['perbaikan'] as List?)?.length ?? 0;
+    final exportedAt    =
+        json['exported_at']?.toString().substring(0, 10) ?? '-';
+
+    if (!mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Konfirmasi Restore'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _infoRow('Tahun', '$tahunBackup'),
+            _infoRow('Sisa Tahun Lalu',
+                CurrencyFormatter.format(sisaBackup)),
+            _infoRow('Data Setoran', '$jmlSetoran entri'),
+            _infoRow('Data Perbaikan', '$jmlPerbaikan entri'),
+            _infoRow('Dibuat', exportedAt),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warningLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '⚠️ Data tahun $tahunBackup yang ada '
+                'saat ini akan digantikan.',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.warning,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary),
+            child: const Text('Restore',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _loading = true);
+    try {
       await _db.importFromJson(json);
       _showSuccess('✅ Restore berhasil!');
-    } on Exception catch (e) {
+    } catch (e) {
       _showError('Gagal restore: $e');
     } finally {
       setState(() => _loading = false);
@@ -175,8 +483,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         children: [
           Text(label,
               style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textMedium)),
+                  fontSize: 12, color: AppColors.textMedium)),
           Text(value,
               style: const TextStyle(
                   fontSize: 12,
@@ -193,7 +500,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     final current = await _db.getSisaTahunLalu();
     final ctrl    = TextEditingController(
         text: current.toString());
-
     if (!mounted) return;
     final result = await showDialog<int>(
       context: context,
@@ -201,7 +507,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         title: const Text('Edit Sisa Tahun Lalu'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Saat ini: ${CurrencyFormatter.format(current)}',
@@ -239,11 +544,10 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         ],
       ),
     );
-
     if (result != null) {
       await _db.setSisaTahunLalu(result);
       _showSuccess(
-          'Sisa tahun lalu: ${CurrencyFormatter.format(result)}');
+          'Sisa: ${CurrencyFormatter.format(result)}');
     }
   }
 
@@ -279,10 +583,10 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     await _db.carryOverKeTahunDepan(_tahun);
     setState(() => _loading = false);
     _showSuccess(
-        '✅ Carry over berhasil! Sisa ${_tahun + 1} sudah diupdate.');
+        '✅ Sisa ${_tahun + 1} sudah diupdate!');
   }
 
-  // ─── RESET DATA ────────────────────────────────────
+  // ─── RESET ─────────────────────────────────────────
 
   Future<void> _resetData() async {
     final confirm = await showDialog<bool>(
@@ -290,10 +594,9 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       builder: (_) => AlertDialog(
         title: const Text('⚠️ Reset Semua Data'),
         content: const Text(
-          'Tindakan ini akan menghapus SEMUA data setoran '
-          'dan perbaikan.\n\n'
-          'Pastikan sudah backup terlebih dahulu!\n\n'
-          'Tindakan ini TIDAK BISA dibatalkan.',
+          'Akan menghapus SEMUA data setoran dan perbaikan.\n\n'
+          'Backup terlebih dahulu!\n\n'
+          'Tidak bisa dibatalkan.',
         ),
         actions: [
           TextButton(
@@ -370,53 +673,42 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
           ListView(
             padding: const EdgeInsets.all(16),
             children: [
-
-              // ── BACKUP & RESTORE ─────────────────
               _sectionTitle('Backup & Restore'),
               const SizedBox(height: 8),
-
               _settingCard(
                 icon: Icons.upload_file,
                 iconColor: AppColors.primary,
                 title: 'Export / Backup (JSON)',
-                subtitle: 'Simpan data ke file JSON & bagikan',
-                trailing: _tahunButton(),
+                subtitle: 'Simpan & bagikan data ke file JSON',
+                trailing: _tahunBtn(),
                 onTap: _exportBackup,
               ),
-
               _settingCard(
                 icon: Icons.table_chart,
                 iconColor: const Color(0xFF1B5E20),
                 title: 'Export ke Excel (.xlsx)',
-                subtitle: 'Laporan Excel lengkap 3 sheet',
-                trailing: _tahunButton(),
+                subtitle: 'Laporan Excel 3 sheet',
+                trailing: _tahunBtn(),
                 onTap: _exportExcel,
               ),
-
               _settingCard(
                 icon: Icons.download_for_offline,
                 iconColor: AppColors.success,
                 title: 'Restore / Import',
                 subtitle:
-                    'Pilih file backup .json dari folder mana saja\n'
-                    '(Downloads, Drive, WhatsApp, dll)',
+                    'Scan Downloads atau tempel teks JSON',
                 onTap: _restoreBackup,
               ),
-
               const SizedBox(height: 16),
-
-              // ── KONFIGURASI ──────────────────────
               _sectionTitle('Konfigurasi'),
               const SizedBox(height: 8),
-
               _settingCard(
                 icon: Icons.history,
                 iconColor: AppColors.warning,
                 title: 'Sisa Tahun Lalu',
-                subtitle: 'Edit nominal sisa dari tahun sebelumnya',
+                subtitle: 'Edit nominal sisa tahun sebelumnya',
                 onTap: _editSisaTahunLalu,
               ),
-
               _settingCard(
                 icon: Icons.arrow_forward,
                 iconColor: AppColors.primary,
@@ -425,25 +717,18 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                     'Pindahkan Grand Total $_tahun ke sisa tahun depan',
                 onTap: _carryOver,
               ),
-
               const SizedBox(height: 16),
-
-              // ── ZONA BERBAHAYA ───────────────────
               _sectionTitle('Zona Berbahaya'),
               const SizedBox(height: 8),
-
               _settingCard(
                 icon: Icons.delete_forever,
                 iconColor: AppColors.danger,
                 title: 'Reset Semua Data',
-                subtitle:
-                    'Hapus seluruh data setoran & perbaikan',
+                subtitle: 'Hapus seluruh data setoran & perbaikan',
                 titleColor: AppColors.danger,
                 onTap: _resetData,
               ),
-
               const SizedBox(height: 24),
-
               Center(
                 child: Column(
                   children: [
@@ -467,8 +752,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
               const SizedBox(height: 32),
             ],
           ),
-
-          // Loading overlay
           if (_loading)
             Container(
               color: Colors.black26,
@@ -494,27 +777,23 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     );
   }
 
-  Widget _tahunButton() {
-    return TextButton(
-      onPressed: _pilihTahun,
-      child: Text('$_tahun ▾',
-          style: const TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.bold)),
-    );
-  }
+  Widget _tahunBtn() => TextButton(
+        onPressed: _pilihTahun,
+        child: Text('$_tahun ▾',
+            style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold)),
+      );
 
-  Widget _sectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textLight,
-        letterSpacing: 0.8,
-      ),
-    );
-  }
+  Widget _sectionTitle(String title) => Text(
+        title,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textLight,
+          letterSpacing: 0.8,
+        ),
+      );
 
   Widget _settingCard({
     required IconData icon,
@@ -524,36 +803,35 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     required VoidCallback onTap,
     Widget? trailing,
     Color? titleColor,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        onTap: onTap,
-        leading: Container(
-          width: 40, height: 40,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
+  }) =>
+      Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          onTap: onTap,
+          leading: Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
-          child: Icon(icon, color: iconColor, size: 20),
+          title: Text(title,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: titleColor ?? AppColors.textDark,
+              )),
+          subtitle: Text(subtitle,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textLight)),
+          trailing: trailing ??
+              const Icon(Icons.chevron_right,
+                  color: AppColors.textLight),
         ),
-        title: Text(title,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: titleColor ?? AppColors.textDark,
-            )),
-        subtitle: Text(subtitle,
-            style: const TextStyle(
-                fontSize: 12, color: AppColors.textLight)),
-        trailing: trailing ??
-            const Icon(Icons.chevron_right,
-                color: AppColors.textLight),
-      ),
-    );
-  }
+      );
 
   Future<void> _pilihTahun() async {
     final picked = await showDialog<int>(
