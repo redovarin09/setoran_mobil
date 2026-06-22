@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
+import '../../core/utils/week_helper.dart';
 import '../../models/perbaikan_model.dart';
 import '../../widgets/currency_input.dart';
+import '../../widgets/date_picker_field.dart';
 
 class InputPerbaikanSheet extends StatefulWidget {
   final int tahun;
@@ -31,7 +33,6 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
   late TextEditingController _keteranganCtrl;
   late int _biaya;
 
-  // Saran jenis perbaikan
   final List<String> _jenisSaran = [
     'Servis Rutin', 'Oli', 'Kaki-Kaki', 'Rem',
     'AC', 'Ban', 'Aki', 'Mesin', 'Spooring',
@@ -42,15 +43,9 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
   void initState() {
     super.initState();
     final e = widget.existing;
-    final now = DateTime.now();
-    final defaultTgl =
-        '${now.day.toString().padLeft(2, '0')}/'
-        '${now.month.toString().padLeft(2, '0')}/'
-        '${now.year}';
-
-    _tanggal = e != null
-	 ? WeekHelper.parse(e.tanggal)
-	 : DateTime.now();
+    _tanggal        = e != null
+        ? WeekHelper.parse(e.tanggal)
+        : DateTime.now();
     _jenisCtrl      = TextEditingController(text: e?.jenisPerbaikan ?? '');
     _bengkelCtrl    = TextEditingController(text: e?.namaBengkel ?? '');
     _kmCtrl         = TextEditingController(text: e?.km ?? '');
@@ -69,21 +64,17 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
 
   Future<void> _simpan() async {
     if (_jenisCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Jenis perbaikan tidak boleh kosong'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Jenis perbaikan tidak boleh kosong'),
+        backgroundColor: AppColors.danger,
+      ));
       return;
     }
     if (_biaya == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Biaya tidak boleh 0'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Biaya tidak boleh 0'),
+        backgroundColor: AppColors.danger,
+      ));
       return;
     }
 
@@ -91,7 +82,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
 
     final model = PerbaikanModel(
       id:             widget.existing?.id,
-      tanggal: WeekHelper.format(_tanggal),
+      tanggal:        WeekHelper.format(_tanggal),
       tahun:          widget.tahun,
       jenisPerbaikan: _jenisCtrl.text.trim(),
       namaBengkel:    _bengkelCtrl.text.trim(),
@@ -116,9 +107,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Hapus Data'),
-        content: Text(
-          'Hapus data perbaikan "${_jenisCtrl.text}"?',
-        ),
+        content: Text('Hapus perbaikan "${_jenisCtrl.text}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -149,7 +138,6 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle bar
           Container(
             margin: const EdgeInsets.only(top: 12, bottom: 4),
             width: 40, height: 4,
@@ -158,8 +146,6 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-
-          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
             child: Row(
@@ -192,10 +178,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
               ],
             ),
           ),
-
           const Divider(height: 1),
-
-          // Form
           Flexible(
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
@@ -205,25 +188,22 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tanggal
-                  _label('Tanggal'),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    DatePickerField(
-			label: 'Tanggal',
-		  	initialDate: _tanggal,
-  			onChanged: (dt) => setState(() => _tanggal = dt),
-			),
-                  ),
-                  const SizedBox(height: 14),
 
-                  // Jenis Perbaikan + chip saran
+                  // DatePicker — tidak bisa salah format
+                  DatePickerField(
+                    label: 'Tanggal',
+                    initialDate: _tanggal,
+                    onChanged: (dt) =>
+                        setState(() => _tanggal = dt),
+                  ),
+
+                  // Jenis Perbaikan
                   _label('Jenis Perbaikan *'),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _jenisCtrl,
                     decoration: const InputDecoration(
-                      hintText: 'Contoh: Servis Rutin, Oli, Rem...',
+                      hintText: 'Contoh: Servis Rutin, Oli...',
                       prefixIcon: Icon(Icons.build_outlined,
                           size: 18, color: AppColors.primary),
                       isDense: true,
@@ -241,16 +221,20 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                       return GestureDetector(
                         onTap: () {
                           final cur = _jenisCtrl.text;
-                          _jenisCtrl.text = cur.isEmpty ? j : '$cur + $j';
+                          _jenisCtrl.text =
+                              cur.isEmpty ? j : '$cur + $j';
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(16),
+                            color: AppColors.primary
+                                .withValues(alpha: 0.08),
+                            borderRadius:
+                                BorderRadius.circular(16),
                             border: Border.all(
-                                color: AppColors.primary.withOpacity(0.2)),
+                                color: AppColors.primary
+                                    .withValues(alpha: 0.2)),
                           ),
                           child: Text(j,
                               style: const TextStyle(
@@ -327,16 +311,17 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14),
                             side: const BorderSide(
                                 color: AppColors.primary),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                                borderRadius:
+                                    BorderRadius.circular(8)),
                           ),
                           child: const Text('Batal',
-                              style:
-                                  TextStyle(color: AppColors.primary)),
+                              style: TextStyle(
+                                  color: AppColors.primary)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -345,11 +330,12 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                         child: ElevatedButton(
                           onPressed: _loading ? null : _simpan,
                           style: ElevatedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14),
                             backgroundColor: AppColors.primary,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                                borderRadius:
+                                    BorderRadius.circular(8)),
                           ),
                           child: _loading
                               ? const SizedBox(
@@ -360,7 +346,8 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                               : const Text('💾  Simpan',
                                   style: TextStyle(
                                       color: Colors.white,
-                                      fontWeight: FontWeight.bold)),
+                                      fontWeight:
+                                          FontWeight.bold)),
                         ),
                       ),
                     ],
