@@ -1,33 +1,47 @@
 class WeekHelper {
-  /// Hitung jumlah minggu aktif dalam satu bulan
+  /// Hitung jumlah hari MINGGU (Sunday) dalam satu bulan
   static int jumlahMinggu(int bulan, int tahun) {
-    final firstDay = DateTime(tahun, bulan, 1);
-    final lastDay  = DateTime(tahun, bulan + 1, 0);
-    return ((lastDay.day + firstDay.weekday - 1) / 7).ceil();
-  }
-
-  /// Hitung tanggal default untuk minggu ke-N
-  /// Mengambil hari Senin pertama bulan itu sebagai acuan
-  static DateTime tanggalMinggu(int mingguKe, int bulan, int tahun) {
-    final firstDay = DateTime(tahun, bulan, 1);
-
-    // Cari Senin pertama di bulan ini
-    // weekday: 1=Sen, 2=Sel, ..., 7=Ming
-    final daysToMonday = firstDay.weekday == 1
-        ? 0
-        : (8 - firstDay.weekday) % 7;
-
-    final firstMonday = firstDay.add(Duration(days: daysToMonday));
-
-    // Minggu ke-N dimulai dari Senin ke-(N-1) setelah Senin pertama
-    final weekDate = firstMonday.add(Duration(days: (mingguKe - 1) * 7));
-
-    // Pastikan masih dalam bulan yang sama
-    if (weekDate.month != bulan) {
-      return DateTime(tahun, bulan + 1, 0); // hari terakhir bulan
+    final lastDay = DateTime(tahun, bulan + 1, 0).day;
+    int count = 0;
+    for (int d = 1; d <= lastDay; d++) {
+      if (DateTime(tahun, bulan, d).weekday == DateTime.sunday) {
+        count++;
+      }
     }
-    return weekDate;
+    return count;
   }
+
+  /// Tanggal hari Minggu ke-N dalam bulan tersebut
+  static DateTime tanggalMinggu(int mingguKe, int bulan, int tahun) {
+    final lastDay = DateTime(tahun, bulan + 1, 0).day;
+    int count = 0;
+    for (int d = 1; d <= lastDay; d++) {
+      final dt = DateTime(tahun, bulan, d);
+      if (dt.weekday == DateTime.sunday) {
+        count++;
+        if (count == mingguKe) return dt;
+      }
+    }
+    // Fallback: hari Minggu terakhir bulan
+    return DateTime(tahun, bulan + 1, 0);
+  }
+
+  /// Semua tanggal hari Minggu dalam satu bulan
+  static List<DateTime> semuaMinggu(int bulan, int tahun) {
+    final lastDay = DateTime(tahun, bulan + 1, 0).day;
+    final result  = <DateTime>[];
+    for (int d = 1; d <= lastDay; d++) {
+      final dt = DateTime(tahun, bulan, d);
+      if (dt.weekday == DateTime.sunday) {
+        result.add(dt);
+      }
+    }
+    return result;
+  }
+
+  /// Cek apakah tanggal adalah hari Minggu
+  static bool isSunday(DateTime dt) =>
+      dt.weekday == DateTime.sunday;
 
   /// Format tanggal ke DD/MM/YYYY
   static String format(DateTime dt) =>

@@ -8,6 +8,8 @@ class DatePickerField extends StatefulWidget {
   final ValueChanged<DateTime> onChanged;
   final DateTime? firstDate;
   final DateTime? lastDate;
+  // Jika true, hanya hari Minggu yang bisa dipilih
+  final bool sundayOnly;
 
   const DatePickerField({
     super.key,
@@ -16,6 +18,7 @@ class DatePickerField extends StatefulWidget {
     required this.onChanged,
     this.firstDate,
     this.lastDate,
+    this.sundayOnly = false,
   });
 
   @override
@@ -24,7 +27,8 @@ class DatePickerField extends StatefulWidget {
 
 class _DatePickerFieldState extends State<DatePickerField> {
   late DateTime _selected;
-  final _fmt = DateFormat('dd/MM/yyyy');
+  final _fmt = DateFormat('dd/MM/yyyy (EEEE)', 'id_ID');
+  final _fmtSimple = DateFormat('dd/MM/yyyy');
 
   @override
   void initState() {
@@ -39,6 +43,10 @@ class _DatePickerFieldState extends State<DatePickerField> {
       initialDate: _selected,
       firstDate: widget.firstDate ?? DateTime(2020),
       lastDate: widget.lastDate ?? DateTime(now.year + 2),
+      // Hanya hari Minggu yang bisa dipilih jika sundayOnly = true
+      selectableDayPredicate: widget.sundayOnly
+          ? (day) => day.weekday == DateTime.sunday
+          : null,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -60,16 +68,46 @@ class _DatePickerFieldState extends State<DatePickerField> {
 
   @override
   Widget build(BuildContext context) {
+    String displayText;
+    try {
+      displayText = _fmt.format(_selected);
+    } catch (_) {
+      displayText = _fmtSimple.format(_selected);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: AppColors.textMedium,
-            fontWeight: FontWeight.w500,
-          ),
+        Row(
+          children: [
+            Text(
+              widget.label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textMedium,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (widget.sundayOnly) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Hari Minggu',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 6),
         GestureDetector(
@@ -87,15 +125,16 @@ class _DatePickerFieldState extends State<DatePickerField> {
                 const Icon(Icons.calendar_today,
                     size: 18, color: AppColors.primary),
                 const SizedBox(width: 10),
-                Text(
-                  _fmt.format(_selected),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    displayText,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 const Icon(Icons.arrow_drop_down,
                     color: AppColors.textLight),
               ],

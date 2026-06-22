@@ -7,9 +7,11 @@ import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/setoran/setoran_screen.dart';
 import 'screens/perbaikan/perbaikan_screen.dart';
 import 'screens/pengaturan/pengaturan_screen.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
