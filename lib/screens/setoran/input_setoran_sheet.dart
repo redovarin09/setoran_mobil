@@ -194,7 +194,6 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                     initialDate: _tanggal,
                     firstDate: DateTime(widget.tahun, widget.bulan, 1),
                     lastDate: DateTime(widget.tahun, widget.bulan + 1, 0),
-		    sundayOnly: true,
                     onChanged: (dt) => setState(() => _tanggal = dt),
                   ),
 

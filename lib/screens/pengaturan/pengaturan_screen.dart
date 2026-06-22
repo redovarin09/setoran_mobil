@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -20,21 +21,23 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   int _tahun = DateTime.now().year;
   bool _loading = false;
 
-  // ─── EXPORT / BACKUP ───────────────────────────────
+  // ─── EXPORT / BACKUP JSON ──────────────────────────
 
   Future<void> _exportBackup() async {
     setState(() => _loading = true);
     try {
-      final json     = await _db.exportToJson(_tahun);
-      final jsonStr  = const JsonEncoder.withIndent('  ').convert(json);
-      final dir      = await getApplicationDocumentsDirectory();
-      final fileName = 'backup_setoran_$_tahun.json';
-      final file     = File('${dir.path}/$fileName');
+      final json    = await _db.exportToJson(_tahun);
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(json);
+      final dir     = await getApplicationDocumentsDirectory();
+      final nama    = await _db.getKendaraanNama();
+      final fileName= 'backup_${nama}_$_tahun.json'
+          .replaceAll(' ', '_');
+      final file    = File('${dir.path}/$fileName');
       await file.writeAsString(jsonStr);
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Backup Setoran Mobil $_tahun',
+        text: 'Backup Setoran $_tahun',
         subject: fileName,
       );
     } catch (e) {
@@ -43,6 +46,8 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       setState(() => _loading = false);
     }
   }
+
+  // ─── EXPORT EXCEL ──────────────────────────────────
 
   Future<void> _exportExcel() async {
     setState(() => _loading = true);
@@ -55,91 +60,131 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     }
   }
 
-  // ─── RESTORE / IMPORT ──────────────────────────────
+  // ─── RESTORE — PILIH FILE DARI MANA SAJA ───────────
 
   Future<void> _restoreBackup() async {
-    // Cari file backup di Documents
-    final dir = await getApplicationDocumentsDirectory();
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.json'))
-        .toList()
-      ..sort((a, b) => b.path.compareTo(a.path));
-
-    if (files.isEmpty) {
-      _showError(
-          'Tidak ada file backup (.json) di penyimpanan.\n'
-          'Lakukan Export/Backup terlebih dahulu, lalu simpan file-nya kembali ke folder Documents aplikasi.');
-      return;
-    }
-
-    // Tampilkan daftar file backup
-    if (!mounted) return;
-    final picked = await showDialog<File>(
-      context: context,
-      builder: (_) => SimpleDialog(
-        title: const Text('Pilih File Backup'),
-        children: files.map((f) {
-          final name = f.path.split('/').last;
-          return SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, f),
-            child: Row(
-              children: [
-                const Icon(Icons.file_present,
-                    color: AppColors.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(name,
-                      style: const TextStyle(fontSize: 13)),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-
-    if (picked == null) return;
-
-    // Konfirmasi
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Konfirmasi Restore'),
-        content: Text(
-          'Data tahun yang ada di backup akan menggantikan data saat ini.\n\n'
-          'File: ${picked.path.split('/').last}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary),
-            child: const Text('Restore',
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() => _loading = true);
     try {
-      final content = await picked.readAsString();
-      final json    = jsonDecode(content) as Map<String, dynamic>;
+      // Buka file picker — user bisa pilih dari Downloads,
+      // Drive, WhatsApp, folder mana saja
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        dialogTitle: 'Pilih file backup (.json)',
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final picked = result.files.first;
+      final path   = picked.path;
+
+      if (path == null) {
+        _showError('Tidak bisa membaca file. Coba pindahkan '
+            'file ke Downloads terlebih dahulu.');
+        return;
+      }
+
+      // Preview isi file sebelum restore
+      final content = await File(path).readAsString();
+      Map<String, dynamic> json;
+      try {
+        json = jsonDecode(content) as Map<String, dynamic>;
+      } catch (_) {
+        _showError('File bukan format backup yang valid.');
+        return;
+      }
+
+      // Tampilkan info backup
+      final tahunBackup = json['tahun'] ?? '?';
+      final sisaBackup  = json['sisa_tahun_lalu'] ?? 0;
+      final jmlSetoran  =
+          (json['setoran'] as List?)?.length ?? 0;
+      final jmlPerbaikan =
+          (json['perbaikan'] as List?)?.length ?? 0;
+      final exportedAt  = json['exported_at'] ?? '-';
+
+      if (!mounted) return;
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Konfirmasi Restore'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _infoRow('File', picked.name),
+              _infoRow('Tahun', '$tahunBackup'),
+              _infoRow('Sisa Tahun Lalu',
+                  CurrencyFormatter.format(sisaBackup as int)),
+              _infoRow('Data Setoran', '$jmlSetoran entri'),
+              _infoRow('Data Perbaikan',
+                  '$jmlPerbaikan entri'),
+              _infoRow('Dibuat', exportedAt
+                  .toString()
+                  .substring(0, 10)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.warningLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '⚠️ Data tahun $tahunBackup yang ada '
+                  'saat ini akan digantikan.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary),
+              child: const Text('Restore',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
+      setState(() => _loading = true);
       await _db.importFromJson(json);
-      _showSuccess('Restore berhasil!');
-    } catch (e) {
+      _showSuccess('✅ Restore berhasil!');
+    } on Exception catch (e) {
       _showError('Gagal restore: $e');
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textMedium)),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark)),
+        ],
+      ),
+    );
   }
 
   // ─── EDIT SISA TAHUN LALU ──────────────────────────
@@ -198,44 +243,46 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     if (result != null) {
       await _db.setSisaTahunLalu(result);
       _showSuccess(
-          'Sisa tahun lalu diupdate: ${CurrencyFormatter.format(result)}');
+          'Sisa tahun lalu: ${CurrencyFormatter.format(result)}');
     }
   }
 
-  // ─── RESET DATA ────────────────────────────────────
+  // ─── CARRY OVER ────────────────────────────────────
 
   Future<void> _carryOver() async {
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('Carry Over'),
-      content: Text(
-        'Grand Total tahun $_tahun akan dijadikan '
-        'Sisa Tahun Lalu untuk tahun ${_tahun + 1}.\n\n'
-        'Lanjutkan?',
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Carry Over'),
+        content: Text(
+          'Grand Total tahun $_tahun akan dijadikan '
+          'Sisa Tahun Lalu untuk tahun ${_tahun + 1}.\n\n'
+          'Lanjutkan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary),
+            child: const Text('Ya, Carry Over',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Batal'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, true),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary),
-          child: const Text('Ya, Carry Over',
-              style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    ),
-  );
-  if (confirm != true) return;
-  setState(() => _loading = true);
-  await _db.carryOverKeTahunDepan(_tahun);
-  setState(() => _loading = false);
-  _showSuccess(
-      'Carry over berhasil! Sisa ${_tahun + 1} sudah diupdate.');
-}
+    );
+    if (confirm != true) return;
+    setState(() => _loading = true);
+    await _db.carryOverKeTahunDepan(_tahun);
+    setState(() => _loading = false);
+    _showSuccess(
+        '✅ Carry over berhasil! Sisa ${_tahun + 1} sudah diupdate.');
+  }
+
+  // ─── RESET DATA ────────────────────────────────────
 
   Future<void> _resetData() async {
     final confirm = await showDialog<bool>(
@@ -243,8 +290,9 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       builder: (_) => AlertDialog(
         title: const Text('⚠️ Reset Semua Data'),
         content: const Text(
-          'Tindakan ini akan menghapus SEMUA data setoran dan perbaikan.\n\n'
-          'Pastikan sudah melakukan backup terlebih dahulu!\n\n'
+          'Tindakan ini akan menghapus SEMUA data setoran '
+          'dan perbaikan.\n\n'
+          'Pastikan sudah backup terlebih dahulu!\n\n'
           'Tindakan ini TIDAK BISA dibatalkan.',
         ),
         actions: [
@@ -262,10 +310,8 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         ],
       ),
     );
-
     if (confirm != true) return;
 
-    // Konfirmasi kedua
     final confirm2 = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -286,7 +332,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         ],
       ),
     );
-
     if (confirm2 != true) return;
 
     setState(() => _loading = true);
@@ -300,7 +345,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       backgroundColor: AppColors.danger,
-      duration: const Duration(seconds: 4),
+      duration: const Duration(seconds: 5),
     ));
   }
 
@@ -333,38 +378,28 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
               _settingCard(
                 icon: Icons.upload_file,
                 iconColor: AppColors.primary,
-                title: 'Export / Backup',
+                title: 'Export / Backup (JSON)',
                 subtitle: 'Simpan data ke file JSON & bagikan',
-                trailing: TextButton(
-                  onPressed: _pilihTahunLalu,
-                  child: Text('$_tahun ▾',
-                      style: const TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold)),
-                ),
+                trailing: _tahunButton(),
                 onTap: _exportBackup,
               ),
 
-	      _settingCard(
-  		icon: Icons.table_chart,
-  		iconColor: const Color(0xFF1B5E20),
-  		title: 'Export ke Excel (.xlsx)',
-  		subtitle: 'Buat laporan Excel lengkap 3 sheet',
-  		trailing: TextButton(
-		    onPressed: _pilihTahunLalu,
-		    child: Text('$_tahun ▾',
-		        style: const TextStyle(
-		            color: AppColors.primary,
-		            fontWeight: FontWeight.bold)),
-		  ),
-		  onTap: _exportExcel,
-		),
+              _settingCard(
+                icon: Icons.table_chart,
+                iconColor: const Color(0xFF1B5E20),
+                title: 'Export ke Excel (.xlsx)',
+                subtitle: 'Laporan Excel lengkap 3 sheet',
+                trailing: _tahunButton(),
+                onTap: _exportExcel,
+              ),
 
               _settingCard(
                 icon: Icons.download_for_offline,
                 iconColor: AppColors.success,
                 title: 'Restore / Import',
-                subtitle: 'Pulihkan data dari file backup JSON',
+                subtitle:
+                    'Pilih file backup .json dari folder mana saja\n'
+                    '(Downloads, Drive, WhatsApp, dll)',
                 onTap: _restoreBackup,
               ),
 
@@ -382,17 +417,18 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 onTap: _editSisaTahunLalu,
               ),
 
-	      _settingCard(
-  	        icon: Icons.arrow_forward,
-	        iconColor: AppColors.primary,
-	        title: 'Carry Over ke Tahun Depan',
-	        subtitle: 'Pindahkan Grand Total $_tahun ke sisa tahun depan',
-	        onTap: _carryOver,
-	      ),
+              _settingCard(
+                icon: Icons.arrow_forward,
+                iconColor: AppColors.primary,
+                title: 'Carry Over ke Tahun Depan',
+                subtitle:
+                    'Pindahkan Grand Total $_tahun ke sisa tahun depan',
+                onTap: _carryOver,
+              ),
 
               const SizedBox(height: 16),
 
-              // ── BAHAYA ───────────────────────────
+              // ── ZONA BERBAHAYA ───────────────────
               _sectionTitle('Zona Berbahaya'),
               const SizedBox(height: 8),
 
@@ -400,36 +436,31 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 icon: Icons.delete_forever,
                 iconColor: AppColors.danger,
                 title: 'Reset Semua Data',
-                subtitle: 'Hapus seluruh data setoran & perbaikan',
+                subtitle:
+                    'Hapus seluruh data setoran & perbaikan',
                 titleColor: AppColors.danger,
                 onTap: _resetData,
               ),
 
               const SizedBox(height: 24),
 
-              // Info versi
               Center(
                 child: Column(
                   children: [
                     const Icon(Icons.directions_car,
                         size: 40, color: AppColors.primary),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Setoran Mobil',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                        fontSize: 16,
-                      ),
-                    ),
+                    const Text('Setoran Mobil',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textDark,
+                          fontSize: 16,
+                        )),
                     const SizedBox(height: 4),
-                    Text(
-                      'v1.0.0',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
-                    ),
+                    Text('v1.2.0',
+                        style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12)),
                   ],
                 ),
               ),
@@ -463,6 +494,16 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     );
   }
 
+  Widget _tahunButton() {
+    return TextButton(
+      onPressed: _pilihTahun,
+      child: Text('$_tahun ▾',
+          style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold)),
+    );
+  }
+
   Widget _sectionTitle(String title) {
     return Text(
       title,
@@ -493,7 +534,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         leading: Container(
           width: 40, height: 40,
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
+            color: iconColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: iconColor, size: 20),
@@ -514,11 +555,11 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     );
   }
 
-  Future<void> _pilihTahunLalu() async {
+  Future<void> _pilihTahun() async {
     final picked = await showDialog<int>(
       context: context,
       builder: (_) => SimpleDialog(
-        title: const Text('Pilih Tahun Export'),
+        title: const Text('Pilih Tahun'),
         children: [2024, 2025, 2026, 2027].map((y) {
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(context, y),
