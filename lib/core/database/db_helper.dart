@@ -270,4 +270,71 @@ class DbHelper {
     await d.delete('setoran');
     await d.delete('perbaikan');
   }
+
+// ─── KONFIGURASI TAMBAHAN ──────────────────────────
+
+  Future<bool> isSetupDone() async {
+    final d = await db;
+    final rows = await d.query('konfigurasi',
+        where: 'kunci = ?', whereArgs: ['setup_done']);
+    return rows.isNotEmpty;
+  }
+
+  Future<void> setSetupDone() async {
+    final d = await db;
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'setup_done', 'nilai': '1'},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String> getKendaraanNama() async {
+    final d = await db;
+    final rows = await d.query('konfigurasi',
+        where: 'kunci = ?', whereArgs: ['kendaraan_nama']);
+    if (rows.isEmpty) return 'Kendaraan';
+    return rows.first['nilai'] as String;
+  }
+
+  Future<void> setKendaraanNama(String nama) async {
+    final d = await db;
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'kendaraan_nama', 'nilai': nama},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> carryOverKeTahunDepan(int tahunAsal) async {
+    final grandTotal = await _hitungGrandTotal(tahunAsal);
+    final tahunTujuan = tahunAsal + 1;
+    final d = await db;
+    await d.insert(
+      'konfigurasi',
+      {
+        'kunci': 'sisa_tahun_lalu',
+        'nilai': grandTotal.abs().toString(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    // Simpan juga histori per tahun
+    await d.insert(
+      'konfigurasi',
+      {
+        'kunci': 'sisa_${tahunAsal}_to_$tahunTujuan',
+        'nilai': grandTotal.toString(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> _hitungGrandTotal(int tahun) async {
+    final sisaLalu   = await getSisaTahunLalu();
+    final perBulan   = await getAllSisaPerBulan(tahun);
+    final totalSetor = perBulan.values.fold(0, (a, b) => a + b);
+    final perbaikan  = await getTotalPerbaikan(tahun);
+    return sisaLalu + totalSetor - perbaikan;
+  }
+
 }

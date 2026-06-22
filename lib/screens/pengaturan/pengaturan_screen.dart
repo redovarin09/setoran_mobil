@@ -192,6 +192,39 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
   // ─── RESET DATA ────────────────────────────────────
 
+  Future<void> _carryOver() async {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Carry Over'),
+      content: Text(
+        'Grand Total tahun $_tahun akan dijadikan '
+        'Sisa Tahun Lalu untuk tahun ${_tahun + 1}.\n\n'
+        'Lanjutkan?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary),
+          child: const Text('Ya, Carry Over',
+              style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+  if (confirm != true) return;
+  setState(() => _loading = true);
+  await _db.carryOverKeTahunDepan(_tahun);
+  setState(() => _loading = false);
+  _showSuccess(
+      'Carry over berhasil! Sisa ${_tahun + 1} sudah diupdate.');
+}
+
   Future<void> _resetData() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -321,6 +354,14 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 subtitle: 'Edit nominal sisa dari tahun sebelumnya',
                 onTap: _editSisaTahunLalu,
               ),
+
+	      _settingCard(
+  	        icon: Icons.arrow_forward,
+	        iconColor: AppColors.primary,
+	        title: 'Carry Over ke Tahun Depan',
+	        subtitle: 'Pindahkan Grand Total $_tahun ke sisa tahun depan',
+	        onTap: _carryOver,
+	      ),
 
               const SizedBox(height: 16),
 
