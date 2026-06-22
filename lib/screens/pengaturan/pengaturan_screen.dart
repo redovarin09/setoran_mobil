@@ -128,7 +128,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                   color: AppColors.warningLight,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text(
+                child: Text(
                   '⚠️ Data tahun $tahunBackup yang ada '
                   'saat ini akan digantikan.',
                   style: TextStyle(
