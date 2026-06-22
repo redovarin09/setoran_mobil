@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
@@ -15,15 +16,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _db = DbHelper();
   int _tahun = DateTime.now().year;
 
-  int _sisaTahunLalu    = 0;
-  Map<int, int> _sisaPerBulan = {};
-  int _totalPerbaikan   = 0;
-  bool _loading         = true;
+  int _sisaTahunLalu      = 0;
+  Map<int, int> _perBulan = {};
+  int _totalPerbaikan     = 0;
+  String _namaKendaraan   = 'Kendaraan';
+  bool _loading           = true;
+  int? _touchedIndex;
 
   int get _totalSetoran =>
-      _sisaPerBulan.values.fold(0, (a, b) => a + b);
-  int get _totalKotor  => _sisaTahunLalu + _totalSetoran;
-  int get _grandTotal  => _totalKotor - _totalPerbaikan;
+      _perBulan.values.fold(0, (a, b) => a + b);
+  int get _grandTotal =>
+      _sisaTahunLalu + _totalSetoran - _totalPerbaikan;
 
   @override
   void initState() {
@@ -33,14 +36,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final sisa     = await _db.getSisaTahunLalu();
-    final perBulan = await _db.getAllSisaPerBulan(_tahun);
-    final perbaikan= await _db.getTotalPerbaikan(_tahun);
+    final results = await Future.wait([
+      _db.getSisaTahunLalu(),
+      _db.getAllSisaPerBulan(_tahun),
+      _db.getTotalPerbaikan(_tahun),
+      _db.getKendaraanNama(),
+    ]);
     setState(() {
-      _sisaTahunLalu  = sisa;
-      _sisaPerBulan   = perBulan;
-      _totalPerbaikan = perbaikan;
-      _loading        = false;
+      _sisaTahunLalu   = results[0] as int;
+      _perBulan        = results[1] as Map<int, int>;
+      _totalPerbaikan  = results[2] as int;
+      _namaKendaraan   = results[3] as String;
+      _loading         = false;
     });
   }
 
@@ -50,24 +57,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
-        title: const Text('Dashboard'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Dashboard'),
+            Text(
+              _namaKendaraan,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.white70,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: _pilihTahun,
-            child: Text(
-              '$_tahun',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
+            child: Text('$_tahun',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                )),
           ),
         ],
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(child: CircularProgressIndicator(
+              color: AppColors.primary))
           : RefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
@@ -77,87 +95,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Grand Total Card
                     _buildGrandTotalCard(),
                     const SizedBox(height: 16),
-
-                    // Row 2 card kecil
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMiniCard(
-                            label: 'Sisa Tahun Lalu',
-                            value: CurrencyFormatter.format(_sisaTahunLalu),
-                            icon: Icons.history,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildMiniCard(
-                            label: 'Total Perbaikan',
-                            value: CurrencyFormatter.format(_totalPerbaikan),
-                            icon: Icons.build,
-                            color: const Color(0xFF6A1B9A),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMiniCard(
-                            label: 'Total Sisa Setoran',
-                            value: CurrencyFormatter.format(_totalSetoran),
-                            icon: Icons.receipt_long,
-                            color: AppColors.warning,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildMiniCard(
-                            label: 'Grand Total',
-                            value: CurrencyFormatter.format(_grandTotal),
-                            icon: Icons.account_balance_wallet,
-                            color: _grandTotal >= 0
-                                ? AppColors.success
-                                : AppColors.danger,
-                          ),
-                        ),
-                      ],
-                    ),
+                    Row(children: [
+                      Expanded(child: _buildMiniCard(
+                        label: 'Sisa Tahun Lalu',
+                        value: CurrencyFormatter.format(
+                            _sisaTahunLalu),
+                        icon: Icons.history,
+                        color: AppColors.primary,
+                      )),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildMiniCard(
+                        label: 'Total Perbaikan',
+                        value: CurrencyFormatter.format(
+                            _totalPerbaikan),
+                        icon: Icons.build,
+                        color: const Color(0xFF6A1B9A),
+                      )),
+                    ]),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(child: _buildMiniCard(
+                        label: 'Total Sisa Setoran',
+                        value: CurrencyFormatter.format(
+                            _totalSetoran),
+                        icon: Icons.receipt_long,
+                        color: AppColors.warning,
+                      )),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildMiniCard(
+                        label: 'Grand Total',
+                        value: CurrencyFormatter.format(
+                            _grandTotal),
+                        icon: Icons.account_balance_wallet,
+                        color: _grandTotal >= 0
+                            ? AppColors.success
+                            : AppColors.danger,
+                      )),
+                    ]),
                     const SizedBox(height: 20),
 
-                    // Rekap per bulan
-                    const Text(
-                      'Rekap Sisa Per Bulan',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
-                    ),
+                    // fl_chart Bar Chart
+                    _sectionTitle('Grafik Sisa Per Bulan'),
+                    const SizedBox(height: 10),
+                    _buildFlChart(),
+                    const SizedBox(height: 20),
+
+                    // Rekap bulan
+                    _sectionTitle('Rekap Sisa Per Bulan'),
                     const SizedBox(height: 10),
                     _buildRekapBulan(),
                     const SizedBox(height: 20),
 
-                    // Bar chart sederhana
-                    const Text(
-                      'Grafik Sisa Setoran',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _buildBarChart(),
-                    const SizedBox(height: 20),
-
-                    // Kalkulasi detail
-                    _buildKalkulasiDetail(),
+                    // Detail kalkulasi
+                    _buildKalkulasi(),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -183,7 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: (_grandTotal >= 0
                     ? AppColors.primary
                     : AppColors.danger)
-                .withOpacity(0.4),
+                .withValues(alpha: 0.4),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -196,17 +189,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-  'Grand Total $_tahun',
-  style: const TextStyle(     // ← const pindah ke sini
-    color: Colors.white70,
-    fontSize: 13,
-  ),
-),
+                '$_namaKendaraan · $_tahun',
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 12),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -236,12 +227,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _grandTotalItem(
-                  'Sisa Lalu', CurrencyFormatter.format(_sisaTahunLalu)),
-              _grandTotalItem(
-                  'Total Setoran', CurrencyFormatter.format(_totalSetoran)),
-              _grandTotalItem(
-                  'Perbaikan', CurrencyFormatter.format(_totalPerbaikan)),
+              _gtItem('Sisa Lalu',
+                  CurrencyFormatter.format(_sisaTahunLalu)),
+              _gtItem('Total Setoran',
+                  CurrencyFormatter.format(_totalSetoran)),
+              _gtItem('Perbaikan',
+                  CurrencyFormatter.format(_totalPerbaikan)),
             ],
           ),
         ],
@@ -249,7 +240,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _grandTotalItem(String label, String value) {
+  Widget _gtItem(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -279,7 +270,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.08),
+            color: color.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -291,7 +282,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 18),
@@ -314,10 +305,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildRekapBulan() {
-    if (_sisaPerBulan.isEmpty) {
+  Widget _buildFlChart() {
+    if (_perBulan.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(20),
+        height: 180,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -329,13 +320,199 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    final maxVal = _perBulan.values
+        .fold(0, (a, b) => a > b ? a : b)
+        .toDouble();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                maxY: maxVal * 1.2,
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  touchCallback:
+                      (FlTouchEvent event, barTouchResponse) {
+                    setState(() {
+                      if (barTouchResponse == null ||
+                          barTouchResponse.spot == null) {
+                        _touchedIndex = null;
+                        return;
+                      }
+                      _touchedIndex = barTouchResponse
+                          .spot!.touchedBarGroupIndex;
+                    });
+                  },
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => AppColors.primaryDark,
+                    tooltipRoundedRadius: 8,
+                    getTooltipItem: (group, gi, rod, ri) {
+                      final bulan = group.x + 1;
+                      final nilai = _perBulan[bulan] ?? 0;
+                      return BarTooltipItem(
+                        '${AppStrings.bulan[bulan - 1]}\n'
+                        '${CurrencyFormatter.format(nilai)}',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (val, meta) {
+                        final b = val.toInt() + 1;
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            AppStrings.bulan[b - 1]
+                                .substring(0, 1),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _touchedIndex == val.toInt()
+                                  ? AppColors.primary
+                                  : AppColors.textLight,
+                              fontWeight:
+                                  _touchedIndex == val.toInt()
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                            ),
+                          ),
+                        );
+                      },
+                      reservedSize: 20,
+                    ),
+                  ),
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: AppColors.divider,
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                barGroups: List.generate(12, (i) {
+                  final bulan = i + 1;
+                  final sisa  =
+                      (_perBulan[bulan] ?? 0).toDouble();
+                  final isTouched = _touchedIndex == i;
+                  final isThisMonth =
+                      bulan == DateTime.now().month &&
+                          _tahun == DateTime.now().year;
+
+                  return BarChartGroupData(
+                    x: i,
+                    barRods: [
+                      BarChartRodData(
+                        toY: sisa == 0 ? 0.5 : sisa,
+                        color: isTouched
+                            ? AppColors.accent
+                            : isThisMonth
+                                ? AppColors.primary
+                                : AppColors.primaryLight
+                                    .withValues(alpha: 0.6),
+                        width: isTouched ? 18 : 14,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(4),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ),
+          ),
+
+          // Legend
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _legendDot(AppColors.primary, 'Bulan ini'),
+              const SizedBox(width: 16),
+              _legendDot(AppColors.accent, 'Dipilih'),
+              const SizedBox(width: 16),
+              _legendDot(
+                  AppColors.primaryLight.withValues(alpha: 0.6),
+                  'Lainnya'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      children: [
+        Container(
+          width: 10, height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 10, color: AppColors.textLight)),
+      ],
+    );
+  }
+
+  Widget _buildRekapBulan() {
+    if (_perBulan.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(
+          child: Text('Belum ada data',
+              style: TextStyle(color: AppColors.textLight)),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.06),
+            color: AppColors.primary.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -344,7 +521,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         children: List.generate(12, (i) {
           final bulan = i + 1;
-          final sisa  = _sisaPerBulan[bulan] ?? 0;
+          final sisa  = _perBulan[bulan] ?? 0;
           if (sisa == 0) return const SizedBox.shrink();
           return Column(
             children: [
@@ -352,35 +529,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 10),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 28, height: 28,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Center(
-                            child: Text('$bulan',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                )),
-                          ),
+                    Container(
+                      width: 28, height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary
+                            .withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Center(
+                        child: Text('$bulan',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            )),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        AppStrings.bulan[i],
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.w500,
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          AppStrings.bulan[i],
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textDark,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                     Text(
                       CurrencyFormatter.format(sisa),
@@ -402,101 +577,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBarChart() {
-    if (_sisaPerBulan.isEmpty) {
-      return Container(
-        height: 120,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(
-          child: Text('Belum ada data',
-              style: TextStyle(color: AppColors.textLight)),
-        ),
-      );
-    }
-
-    final maxVal = _sisaPerBulan.values
-        .fold(0, (a, b) => a > b ? a : b)
-        .toDouble();
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 120,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(12, (i) {
-                final bulan = i + 1;
-                final sisa  = (_sisaPerBulan[bulan] ?? 0).toDouble();
-                final ratio = maxVal > 0 ? sisa / maxVal : 0.0;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (sisa > 0)
-                          Container(
-                            height: 100 * ratio,
-                            decoration: BoxDecoration(
-                              color: bulan == DateTime.now().month
-                                  ? AppColors.accent
-                                  : AppColors.primary.withOpacity(0.7),
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(4)),
-                            ),
-                          )
-                        else
-                          Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: AppColors.divider,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: List.generate(12, (i) {
-              return Expanded(
-                child: Text(
-                  AppStrings.bulan[i].substring(0, 1),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textLight,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildKalkulasiDetail() {
+  Widget _buildKalkulasi() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -504,7 +585,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.06),
+            color: AppColors.primary.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -513,24 +594,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Detail Kalkulasi',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
+          const Text('Detail Kalkulasi',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
+              )),
           const SizedBox(height: 12),
           _kalRow('Sisa Tahun Lalu',
               CurrencyFormatter.format(_sisaTahunLalu)),
-          _kalRow('+ Total Sisa Setoran $_tahun',
+          _kalRow('+ Total Sisa Setoran',
               CurrencyFormatter.format(_totalSetoran)),
           const Divider(height: 16),
           _kalRow('Sub Total',
-              CurrencyFormatter.format(_totalKotor),
+              CurrencyFormatter.format(
+                  _sisaTahunLalu + _totalSetoran),
               bold: true),
-          _kalRow('- Total Biaya Perbaikan',
+          _kalRow('- Total Perbaikan',
               CurrencyFormatter.format(_totalPerbaikan),
               color: AppColors.danger),
           const Divider(height: 16),
@@ -549,9 +629,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _kalRow(String label, String value,
-      {bool bold = false,
-      Color? color,
-      double fontSize = 13}) {
+      {bool bold = false, Color? color, double fontSize = 13}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -575,6 +653,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  Widget _sectionTitle(String title) => Text(
+        title,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textDark,
+        ),
+      );
 
   Future<void> _pilihTahun() async {
     final picked = await showDialog<int>(

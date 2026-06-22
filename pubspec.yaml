@@ -1,7 +1,7 @@
 name: setoran_mobil
 description: Aplikasi manajemen setoran dan perbaikan kendaraan
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.1.0+3
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -14,6 +14,8 @@ dependencies:
   intl: ^0.19.0
   path_provider: ^2.1.3
   share_plus: ^9.0.0
+  fl_chart: ^0.68.0
+  excel: ^4.0.6
   cupertino_icons: ^1.0.6
 
 dev_dependencies:

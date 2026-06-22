@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/excel_exporter.dart';
 
 class PengaturanScreen extends StatefulWidget {
   const PengaturanScreen({super.key});
@@ -38,6 +39,17 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       );
     } catch (e) {
       _showError('Gagal export: $e');
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _exportExcel() async {
+    setState(() => _loading = true);
+    try {
+      await ExcelExporter.exportTahun(_tahun);
+    } catch (e) {
+      _showError('Gagal export Excel: $e');
     } finally {
       setState(() => _loading = false);
     }
@@ -332,6 +344,21 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 ),
                 onTap: _exportBackup,
               ),
+
+	      _settingCard(
+  		icon: Icons.table_chart,
+  		iconColor: const Color(0xFF1B5E20),
+  		title: 'Export ke Excel (.xlsx)',
+  		subtitle: 'Buat laporan Excel lengkap 3 sheet',
+  		trailing: TextButton(
+		    onPressed: _pilihTahunLalu,
+		    child: Text('$_tahun ▾',
+		        style: const TextStyle(
+		            color: AppColors.primary,
+		            fontWeight: FontWeight.bold)),
+		  ),
+		  onTap: _exportExcel,
+		),
 
               _settingCard(
                 icon: Icons.download_for_offline,
