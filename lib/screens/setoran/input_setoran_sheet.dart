@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/week_helper.dart';
 import '../../models/setoran_model.dart';
 import '../../widgets/currency_input.dart';
+import '../../widgets/date_picker_field.dart';
 
 class InputSetoranSheet extends StatefulWidget {
   final int mingguKe;
@@ -29,40 +31,35 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
   final _db = DbHelper();
   bool _loading = false;
 
+  late DateTime _tanggal;
   late int _setoran;
   late int _potongan;
   late int _dibayarkan;
-  late String _catatan;
   late TextEditingController _catatanCtrl;
-  late TextEditingController _tanggalCtrl;
 
   int get _total => _setoran - _potongan;
   int get _sisa  => (_total - _dibayarkan).clamp(0, 999999999);
-  String get _keterangan =>
-      (_total - _dibayarkan) <= 0 ? 'Lunas' : 'Kurang';
+  String get _ket => (_total - _dibayarkan) <= 0 ? 'Lunas' : 'Kurang';
 
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
+
+    // Tanggal default: Senin minggu ke-N bulan ini
+    _tanggal = e != null
+        ? WeekHelper.parse(e.tanggal)
+        : WeekHelper.tanggalMinggu(
+            widget.mingguKe, widget.bulan, widget.tahun);
+
     _setoran    = e?.setoran    ?? 700000;
     _potongan   = e?.potongan   ?? 0;
     _dibayarkan = e?.dibayarkan ?? 0;
-    _catatan    = e?.catatan    ?? '';
-
-    // Default tanggal minggu ke-N bulan ini
-    final defaultDate = e?.tanggal ??
-        '${(widget.mingguKe * 7 - 3).toString().padLeft(2, '0')}/'
-        '${widget.bulan.toString().padLeft(2, '0')}/'
-        '${widget.tahun}';
-
-    _tanggalCtrl = TextEditingController(text: defaultDate);
-    _catatanCtrl = TextEditingController(text: _catatan);
+    _catatanCtrl = TextEditingController(text: e?.catatan ?? '');
   }
 
   @override
   void dispose() {
-    _tanggalCtrl.dispose();
     _catatanCtrl.dispose();
     super.dispose();
   }
@@ -77,7 +74,6 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
       );
       return;
     }
-
     setState(() => _loading = true);
 
     final model = SetoranModel.hitung(
@@ -85,7 +81,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
       mingguKe:   widget.mingguKe,
       bulan:      widget.bulan,
       tahun:      widget.tahun,
-      tanggal:    _tanggalCtrl.text,
+      tanggal:    WeekHelper.format(_tanggal),
       setoran:    _setoran,
       potongan:   _potongan,
       dibayarkan: _dibayarkan,
@@ -108,9 +104,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Hapus Data'),
-        content: Text(
-          'Hapus data setoran Minggu ${widget.mingguKe}?',
-        ),
+        content: Text('Hapus setoran Minggu ${widget.mingguKe}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -118,10 +112,8 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Hapus',
-              style: TextStyle(color: AppColors.danger),
-            ),
+            child: const Text('Hapus',
+                style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -143,11 +135,10 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle bar
+          // Handle
           Container(
             margin: const EdgeInsets.only(top: 12, bottom: 4),
-            width: 40,
-            height: 4,
+            width: 40, height: 4,
             decoration: BoxDecoration(
               color: Colors.grey[300],
               borderRadius: BorderRadius.circular(2),
@@ -156,7 +147,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
 
           // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -168,12 +159,20 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                     color: AppColors.textDark,
                   ),
                 ),
-                if (widget.existing != null)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        color: AppColors.danger),
-                    onPressed: _hapus,
-                  ),
+                Row(
+                  children: [
+                    if (widget.existing != null)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: AppColors.danger),
+                        onPressed: _hapus,
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -189,36 +188,15 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
               ),
               child: Column(
                 children: [
-                  // Tanggal
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Tanggal',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textMedium,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _tanggalCtrl,
-                        decoration: const InputDecoration(
-                          hintText: 'DD/MM/YYYY',
-                          prefixIcon: Icon(Icons.calendar_today,
-                              size: 18, color: AppColors.primary),
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                  // DatePicker — tidak bisa salah format lagi
+                  DatePickerField(
+                    label: 'Tanggal',
+                    initialDate: _tanggal,
+                    firstDate: DateTime(widget.tahun, widget.bulan, 1),
+                    lastDate: DateTime(widget.tahun, widget.bulan + 1, 0),
+                    onChanged: (dt) => setState(() => _tanggal = dt),
                   ),
 
-                  // Nominal Setoran
                   CurrencyInput(
                     label: 'Nominal Setoran',
                     initialValue: _setoran,
@@ -226,14 +204,12 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                     onChanged: (v) => setState(() => _setoran = v),
                   ),
 
-                  // Potongan
                   CurrencyInput(
                     label: 'Potongan',
                     initialValue: _potongan,
                     onChanged: (v) => setState(() => _potongan = v),
                   ),
 
-                  // Dibayarkan
                   CurrencyInput(
                     label: 'Dibayarkan',
                     initialValue: _dibayarkan,
@@ -250,12 +226,12 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                     ),
                     child: Column(
                       children: [
-                        _previewRow('Total Setoran',
+                        _row('Total Setoran',
                             CurrencyFormatter.format(_total)),
-                        _previewRow('Dibayarkan',
+                        _row('Dibayarkan',
                             CurrencyFormatter.format(_dibayarkan)),
                         const Divider(height: 16),
-                        _previewRow(
+                        _row(
                           'Sisa',
                           CurrencyFormatter.format(_sisa),
                           color: _sisa > 0
@@ -270,17 +246,17 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _keterangan == 'Lunas'
+                              color: _ket == 'Lunas'
                                   ? AppColors.successLight
                                   : AppColors.dangerLight,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              _keterangan,
+                              _ket,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: _keterangan == 'Lunas'
+                                color: _ket == 'Lunas'
                                     ? AppColors.success
                                     : AppColors.danger,
                               ),
@@ -297,14 +273,12 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Catatan',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textMedium,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      const Text('Catatan',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textMedium,
+                            fontWeight: FontWeight.w500,
+                          )),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _catatanCtrl,
@@ -313,33 +287,30 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                           hintText: 'Opsional...',
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12,
-                          ),
+                              horizontal: 12, vertical: 12),
                         ),
-                        onChanged: (v) => _catatan = v,
                       ),
                     ],
                   ),
 
                   const SizedBox(height: 20),
 
-                  // Tombol
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: const BorderSide(color: AppColors.primary),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14),
+                            side: const BorderSide(
+                                color: AppColors.primary),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(8)),
                           ),
-                          child: const Text(
-                            'Batal',
-                            style: TextStyle(color: AppColors.primary),
-                          ),
+                          child: const Text('Batal',
+                              style:
+                                  TextStyle(color: AppColors.primary)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -348,27 +319,22 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                         child: ElevatedButton(
                           onPressed: _loading ? null : _simpan,
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14),
                             backgroundColor: AppColors.primary,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(8)),
                           ),
                           child: _loading
                               ? const SizedBox(
                                   width: 20, height: 20,
                                   child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  '💾  Simpan',
+                                      strokeWidth: 2,
+                                      color: Colors.white))
+                              : const Text('💾  Simpan',
                                   style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -382,7 +348,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
     );
   }
 
-  Widget _previewRow(String label, String value,
+  Widget _row(String label, String value,
       {Color? color, bool bold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

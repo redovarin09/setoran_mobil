@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/week_helper.dart';
 import '../../models/setoran_model.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_row.dart';
@@ -18,11 +19,14 @@ class SetoranScreen extends StatefulWidget {
 class _SetoranScreenState extends State<SetoranScreen> {
   final _db = DbHelper();
 
-  int _bulanDipilih = DateTime.now().month;
-  int _tahun        = DateTime.now().year;
+  int _bulan  = DateTime.now().month;
+  int _tahun  = DateTime.now().year;
   List<SetoranModel> _data = [];
-  int _totalSisa    = 0;
-  bool _loading     = true;
+  int _totalSisa = 0;
+  bool _loading  = true;
+
+  // Jumlah minggu DINAMIS sesuai bulan
+  int get _jumlahMinggu => WeekHelper.jumlahMinggu(_bulan, _tahun);
 
   @override
   void initState() {
@@ -32,8 +36,8 @@ class _SetoranScreenState extends State<SetoranScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data  = await _db.getSetoranByBulan(_bulanDipilih, _tahun);
-    final total = await _db.getTotalSisaByBulan(_bulanDipilih, _tahun);
+    final data  = await _db.getSetoranByBulan(_bulan, _tahun);
+    final total = await _db.getTotalSisaByBulan(_bulan, _tahun);
     setState(() {
       _data      = data;
       _totalSisa = total;
@@ -56,7 +60,7 @@ class _SetoranScreenState extends State<SetoranScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => InputSetoranSheet(
         mingguKe: mingguKe,
-        bulan:    _bulanDipilih,
+        bulan:    _bulan,
         tahun:    _tahun,
         existing: _getByMinggu(mingguKe),
         onSaved:  _load,
@@ -72,38 +76,35 @@ class _SetoranScreenState extends State<SetoranScreen> {
         backgroundColor: AppColors.primary,
         title: const Text('Setoran'),
         actions: [
-          // Pilih Tahun
           TextButton(
             onPressed: _pilihTahun,
-            child: Text(
-              '$_tahun',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
+            child: Text('$_tahun',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
           ),
         ],
       ),
       body: Column(
         children: [
-          // Pilih Bulan (horizontal scroll)
           _buildBulanSelector(),
-
-          // Summary bar
           _buildSummaryBar(),
-
-          // Week Cards
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: AppColors.primary))
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    itemCount: 4,
-                    itemBuilder: (_, i) => _buildWeekCard(i + 1),
+                ? const Center(child: CircularProgressIndicator(
+                    color: AppColors.primary))
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    color: AppColors.primary,
+                    child: ListView.builder(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      // DINAMIS: 4 atau 5 minggu
+                      itemCount: _jumlahMinggu,
+                      itemBuilder: (_, i) =>
+                          _buildWeekCard(i + 1),
+                    ),
                   ),
           ),
         ],
@@ -117,23 +118,25 @@ class _SetoranScreenState extends State<SetoranScreen> {
       height: 48,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         itemCount: 12,
         itemBuilder: (_, i) {
           final bulan   = i + 1;
-          final dipilih = bulan == _bulanDipilih;
+          final dipilih = bulan == _bulan;
           return GestureDetector(
             onTap: () {
-              setState(() => _bulanDipilih = bulan);
+              setState(() => _bulan = bulan);
               _load();
             },
             child: Container(
               margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
                 color: dipilih
                     ? Colors.white
-                    : Colors.white.withOpacity(0.15),
+                    : Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
               ),
               alignment: Alignment.center,
@@ -159,7 +162,8 @@ class _SetoranScreenState extends State<SetoranScreen> {
   Widget _buildSummaryBar() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.primary, AppColors.primaryDark],
@@ -169,7 +173,7 @@ class _SetoranScreenState extends State<SetoranScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.3),
+            color: AppColors.primary.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -181,18 +185,17 @@ class _SetoranScreenState extends State<SetoranScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Total Sisa Setoran',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
-              ),
+              const Text('Total Sisa Setoran',
+                  style: TextStyle(
+                      color: Colors.white70, fontSize: 12)),
               const SizedBox(height: 2),
               Text(
-                AppStrings.bulan[_bulanDipilih - 1],
+                '${AppStrings.bulan[_bulan - 1]} · '
+                '$_jumlahMinggu minggu',
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -215,6 +218,11 @@ class _SetoranScreenState extends State<SetoranScreen> {
     final data    = _getByMinggu(minggu);
     final isEmpty = data == null;
 
+    // Tanggal default pakai WeekHelper
+    final tglDefault = WeekHelper.tanggalMinggu(
+        minggu, _bulan, _tahun);
+    final tglStr = WeekHelper.format(tglDefault);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
@@ -223,8 +231,8 @@ class _SetoranScreenState extends State<SetoranScreen> {
           color: isEmpty
               ? AppColors.divider
               : data.isLunas
-                  ? AppColors.success.withOpacity(0.3)
-                  : AppColors.danger.withOpacity(0.3),
+                  ? AppColors.success.withValues(alpha: 0.3)
+                  : AppColors.danger.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -235,53 +243,51 @@ class _SetoranScreenState extends State<SetoranScreen> {
           padding: const EdgeInsets.all(14),
           child: Column(
             children: [
-              // Header card
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
                     children: [
                       Container(
-                        width: 32,
-                        height: 32,
+                        width: 32, height: 32,
                         decoration: BoxDecoration(
                           color: isEmpty
                               ? AppColors.background
-                              : AppColors.primary.withOpacity(0.1),
+                              : AppColors.primary
+                                  .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Center(
-                          child: Text(
-                            '$minggu',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isEmpty
-                                  ? AppColors.textLight
-                                  : AppColors.primary,
-                            ),
-                          ),
+                          child: Text('$minggu',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isEmpty
+                                    ? AppColors.textLight
+                                    : AppColors.primary,
+                              )),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
+                          Text('Minggu ke-$minggu',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: AppColors.textDark,
+                              )),
                           Text(
-                            'Minggu ke-$minggu',
+                            isEmpty
+                                ? tglStr
+                                : data.tanggal,
                             style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: AppColors.textDark,
+                              fontSize: 11,
+                              color: AppColors.textLight,
                             ),
                           ),
-                          if (!isEmpty)
-                            Text(
-                              data.tanggal,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textLight,
-                              ),
-                            ),
                         ],
                       ),
                     ],
@@ -295,20 +301,18 @@ class _SetoranScreenState extends State<SetoranScreen> {
                       decoration: BoxDecoration(
                         color: AppColors.background,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.divider),
+                        border:
+                            Border.all(color: AppColors.divider),
                       ),
-                      child: const Text(
-                        '+ Input',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textLight,
-                        ),
-                      ),
+                      child: const Text('+ Input',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textLight,
+                          )),
                     ),
                 ],
               ),
 
-              // Detail (jika ada data)
               if (!isEmpty) ...[
                 const Divider(height: 16),
                 InfoRow(
@@ -318,12 +322,14 @@ class _SetoranScreenState extends State<SetoranScreen> {
                 if (data.potongan > 0)
                   InfoRow(
                     label: 'Potongan',
-                    value: '- ${CurrencyFormatter.format(data.potongan)}',
+                    value:
+                        '- ${CurrencyFormatter.format(data.potongan)}',
                     valueColor: AppColors.warning,
                   ),
                 InfoRow(
                   label: 'Dibayarkan',
-                  value: CurrencyFormatter.format(data.dibayarkan),
+                  value:
+                      CurrencyFormatter.format(data.dibayarkan),
                 ),
                 const Divider(height: 12),
                 InfoRow(
@@ -342,14 +348,12 @@ class _SetoranScreenState extends State<SetoranScreen> {
                           size: 12, color: AppColors.textLight),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: Text(
-                          data.catatan,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textLight,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
+                        child: Text(data.catatan,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textLight,
+                              fontStyle: FontStyle.italic,
+                            )),
                       ),
                     ],
                   ),
@@ -370,17 +374,15 @@ class _SetoranScreenState extends State<SetoranScreen> {
         children: [2024, 2025, 2026, 2027].map((y) {
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(context, y),
-            child: Text(
-              '$y',
-              style: TextStyle(
-                fontWeight: y == _tahun
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-                color: y == _tahun
-                    ? AppColors.primary
-                    : AppColors.textDark,
-              ),
-            ),
+            child: Text('$y',
+                style: TextStyle(
+                  fontWeight: y == _tahun
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                  color: y == _tahun
+                      ? AppColors.primary
+                      : AppColors.textDark,
+                )),
           );
         }).toList(),
       ),

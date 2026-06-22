@@ -24,7 +24,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
   final _db = DbHelper();
   bool _loading = false;
 
-  late TextEditingController _tanggalCtrl;
+  late DateTime _tanggal;
   late TextEditingController _jenisCtrl;
   late TextEditingController _bengkelCtrl;
   late TextEditingController _kmCtrl;
@@ -48,7 +48,9 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
         '${now.month.toString().padLeft(2, '0')}/'
         '${now.year}';
 
-    _tanggalCtrl    = TextEditingController(text: e?.tanggal ?? defaultTgl);
+    _tanggal = e != null
+	 ? WeekHelper.parse(e.tanggal)
+	 : DateTime.now();
     _jenisCtrl      = TextEditingController(text: e?.jenisPerbaikan ?? '');
     _bengkelCtrl    = TextEditingController(text: e?.namaBengkel ?? '');
     _kmCtrl         = TextEditingController(text: e?.km ?? '');
@@ -58,7 +60,6 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
 
   @override
   void dispose() {
-    _tanggalCtrl.dispose();
     _jenisCtrl.dispose();
     _bengkelCtrl.dispose();
     _kmCtrl.dispose();
@@ -90,7 +91,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
 
     final model = PerbaikanModel(
       id:             widget.existing?.id,
-      tanggal:        _tanggalCtrl.text,
+      tanggal: WeekHelper.format(_tanggal),
       tahun:          widget.tahun,
       jenisPerbaikan: _jenisCtrl.text.trim(),
       namaBengkel:    _bengkelCtrl.text.trim(),
@@ -208,15 +209,11 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                   _label('Tanggal'),
                   const SizedBox(height: 6),
                   TextFormField(
-                    controller: _tanggalCtrl,
-                    decoration: const InputDecoration(
-                      hintText: 'DD/MM/YYYY',
-                      prefixIcon: Icon(Icons.calendar_today,
-                          size: 18, color: AppColors.primary),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
-                    ),
+                    DatePickerField(
+			label: 'Tanggal',
+		  	initialDate: _tanggal,
+  			onChanged: (dt) => setState(() => _tanggal = dt),
+			),
                   ),
                   const SizedBox(height: 14),
 
