@@ -1,3 +1,5 @@
+import '../core/utils/image_helper.dart';
+
 class SetoranModel {
   final int? id;
   final int mingguKe;
@@ -11,7 +13,7 @@ class SetoranModel {
   final int sisa;
   final String keterangan;
   final String catatan;
-  final String buktiBayar; // ← nama file foto
+  final List<String> buktiBayar; // ← LIST sekarang
 
   SetoranModel({
     this.id,
@@ -26,8 +28,8 @@ class SetoranModel {
     required this.sisa,
     required this.keterangan,
     this.catatan = '',
-    this.buktiBayar = '',
-  });
+    List<String>? buktiBayar,
+  }) : buktiBayar = buktiBayar ?? [];
 
   factory SetoranModel.hitung({
     int? id,
@@ -39,24 +41,24 @@ class SetoranModel {
     int potongan = 0,
     required int dibayarkan,
     String catatan = '',
-    String buktiBayar = '',
+    List<String>? buktiBayar,
   }) {
     final total = setoran - potongan;
     final sisa  = total - dibayarkan;
     return SetoranModel(
-      id: id,
-      mingguKe: mingguKe,
-      bulan: bulan,
-      tahun: tahun,
-      tanggal: tanggal,
-      setoran: setoran,
-      potongan: potongan,
+      id:           id,
+      mingguKe:     mingguKe,
+      bulan:        bulan,
+      tahun:        tahun,
+      tanggal:      tanggal,
+      setoran:      setoran,
+      potongan:     potongan,
       totalSetoran: total,
-      dibayarkan: dibayarkan,
-      sisa: sisa < 0 ? 0 : sisa,
-      keterangan: sisa <= 0 ? 'Lunas' : 'Kurang',
-      catatan: catatan,
-      buktiBayar: buktiBayar,
+      dibayarkan:   dibayarkan,
+      sisa:         sisa < 0 ? 0 : sisa,
+      keterangan:   sisa <= 0 ? 'Lunas' : 'Kurang',
+      catatan:      catatan,
+      buktiBayar:   buktiBayar ?? [],
     );
   }
 
@@ -73,7 +75,8 @@ class SetoranModel {
     'sisa':          sisa,
     'keterangan':    keterangan,
     'catatan':       catatan,
-    'bukti_bayar':   buktiBayar,
+    // Simpan sebagai JSON string
+    'bukti_bayar':   ImageHelper.encodeList(buktiBayar),
   };
 
   factory SetoranModel.fromMap(Map<String, dynamic> m) =>
@@ -82,22 +85,25 @@ class SetoranModel {
         mingguKe:     m['minggu_ke'],
         bulan:        m['bulan'],
         tahun:        m['tahun'],
-        tanggal:      m['tanggal'] ?? '',
-        setoran:      m['setoran'] ?? 0,
-        potongan:     m['potongan'] ?? 0,
-        totalSetoran: m['total_setoran'] ?? 0,
-        dibayarkan:   m['dibayarkan'] ?? 0,
-        sisa:         m['sisa'] ?? 0,
-        keterangan:   m['keterangan'] ?? '',
-        catatan:      m['catatan'] ?? '',
-        buktiBayar:   m['bukti_bayar'] ?? '',
+        tanggal:      m['tanggal']      ?? '',
+        setoran:      m['setoran']      ?? 0,
+        potongan:     m['potongan']     ?? 0,
+        totalSetoran: m['total_setoran']?? 0,
+        dibayarkan:   m['dibayarkan']   ?? 0,
+        sisa:         m['sisa']         ?? 0,
+        keterangan:   m['keterangan']   ?? '',
+        catatan:      m['catatan']      ?? '',
+        // Parse JSON string → List (backward compatible)
+        buktiBayar: ImageHelper.decodeList(
+            m['bukti_bayar'] ?? ''),
       );
 
   SetoranModel copyWith({
     int? id, int? mingguKe, int? bulan, int? tahun,
     String? tanggal, int? setoran, int? potongan,
     int? totalSetoran, int? dibayarkan, int? sisa,
-    String? keterangan, String? catatan, String? buktiBayar,
+    String? keterangan, String? catatan,
+    List<String>? buktiBayar,
   }) => SetoranModel(
     id:           id           ?? this.id,
     mingguKe:     mingguKe     ?? this.mingguKe,
@@ -114,6 +120,7 @@ class SetoranModel {
     buktiBayar:   buktiBayar   ?? this.buktiBayar,
   );
 
-  bool get isLunas => keterangan == 'Lunas';
+  bool get isLunas  => keterangan == 'Lunas';
   bool get hasBukti => buktiBayar.isNotEmpty;
+  int  get jumlahBukti => buktiBayar.length;
 }

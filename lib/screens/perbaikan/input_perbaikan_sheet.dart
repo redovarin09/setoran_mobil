@@ -33,7 +33,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
   late TextEditingController _kmCtrl;
   late TextEditingController _keteranganCtrl;
   late int _biaya;
-  late String _buktiBayar;
+  late List<String> _buktiBayar;
 
   final List<String> _jenisSaran = [
     'Servis Rutin', 'Oli', 'Kaki-Kaki', 'Rem',
@@ -53,7 +53,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
     _kmCtrl         = TextEditingController(text: e?.km ?? '');
     _keteranganCtrl = TextEditingController(text: e?.keterangan ?? '');
     _biaya          = e?.biaya ?? 0;
-    _buktiBayar = e?.buktiBayar ?? '';
+    _buktiBayar = List.from(e?.buktiBayar ?? []);
   }
 
   @override
@@ -310,8 +310,8 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
 
 		  const Divider(height: 20),
 		  BuktiBayarWidget(
-		    initialFileName: _buktiBayar,
-		    onChanged: (fileName) => _buktiBayar = fileName,
+		    initialFileNames: _buktiBayar,
+		    onChanged: (list) => _buktiBayar = list,
 		  ),
 
                   // Tombol

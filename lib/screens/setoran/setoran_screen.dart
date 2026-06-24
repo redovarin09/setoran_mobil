@@ -296,17 +296,31 @@ class _SetoranScreenState extends State<SetoranScreen> {
 		    Row(
 		      children: [
 		        if (data.hasBukti)
-		          Container(
-		            margin: const EdgeInsets.only(right: 6),
-		            padding: const EdgeInsets.all(4),
-		            decoration: BoxDecoration(
-		              color: AppColors.success.withValues(alpha: 0.1),
-		              borderRadius: BorderRadius.circular(6),
-		            ),
-		            child: const Icon(Icons.photo_camera,
-		                size: 14, color: AppColors.success),
-		          ),
-		        StatusBadge(status: data.keterangan),
+			  Container(
+			    margin: const EdgeInsets.only(right: 6),
+			    padding: const EdgeInsets.symmetric(
+			        horizontal: 6, vertical: 3),
+			    decoration: BoxDecoration(
+			      color: AppColors.success.withValues(alpha: 0.1),
+			      borderRadius: BorderRadius.circular(6),
+			    ),
+			    child: Row(
+			      mainAxisSize: MainAxisSize.min,
+			      children: [
+			        const Icon(Icons.photo_camera,
+			            size: 12, color: AppColors.success),
+			        const SizedBox(width: 3),
+			        Text(
+			          '${data.jumlahBukti}',
+			          style: const TextStyle(
+		        	    fontSize: 11,
+			            fontWeight: FontWeight.bold,
+			            color: AppColors.success,
+			          ),
+			        ),
+			      ],
+			    ),
+			  ),
 		      ],
 		    )
                   else

@@ -37,7 +37,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
   late int _potongan;
   late int _dibayarkan;
   late TextEditingController _catatanCtrl;
-  late String _buktiBayar;
+  late List<String> _buktiBayar;
 
   int get _total => _setoran - _potongan;
   int get _sisa  => (_total - _dibayarkan).clamp(0, 999999999);
@@ -58,7 +58,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
     _potongan   = e?.potongan   ?? 0;
     _dibayarkan = e?.dibayarkan ?? 0;
     _catatanCtrl = TextEditingController(text: e?.catatan ?? '');
-    _buktiBayar = e?.buktiBayar ?? '';
+    _buktiBayar = List.from(e?.buktiBayar ?? []);
   }
 
   @override
@@ -299,9 +299,9 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
 
                   const Divider(height: 20),
 		  BuktiBayarWidget(
-		    initialFileName: _buktiBayar,
-		    onChanged: (fileName) => _buktiBayar = fileName,
-		  ),                
+		    initialFileNames: _buktiBayar,
+		    onChanged: (list) => _buktiBayar = list,
+		  ),
 
                   const SizedBox(height: 20),
 

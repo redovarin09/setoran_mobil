@@ -1,3 +1,5 @@
+import '../core/utils/image_helper.dart';
+
 class PerbaikanModel {
   final int? id;
   final String tanggal;
@@ -7,7 +9,7 @@ class PerbaikanModel {
   final int biaya;
   final String km;
   final String keterangan;
-  final String buktiBayar; // ← nama file foto
+  final List<String> buktiBayar; // ← LIST
 
   PerbaikanModel({
     this.id,
@@ -18,8 +20,8 @@ class PerbaikanModel {
     required this.biaya,
     this.km = '',
     this.keterangan = '',
-    this.buktiBayar = '',
-  });
+    List<String>? buktiBayar,
+  }) : buktiBayar = buktiBayar ?? [];
 
   Map<String, dynamic> toMap() => {
     'id':              id,
@@ -30,27 +32,28 @@ class PerbaikanModel {
     'biaya':           biaya,
     'km':              km,
     'keterangan':      keterangan,
-    'bukti_bayar':     buktiBayar,
+    'bukti_bayar':     ImageHelper.encodeList(buktiBayar),
   };
 
   factory PerbaikanModel.fromMap(Map<String, dynamic> m) =>
       PerbaikanModel(
         id:             m['id'],
-        tanggal:        m['tanggal'] ?? '',
-        tahun:          m['tahun'] ?? 2026,
+        tanggal:        m['tanggal']         ?? '',
+        tahun:          m['tahun']           ?? 2026,
         jenisPerbaikan: m['jenis_perbaikan'] ?? '',
-        namaBengkel:    m['nama_bengkel'] ?? '',
-        biaya:          m['biaya'] ?? 0,
-        km:             m['km'] ?? '',
-        keterangan:     m['keterangan'] ?? '',
-        buktiBayar:     m['bukti_bayar'] ?? '',
+        namaBengkel:    m['nama_bengkel']    ?? '',
+        biaya:          m['biaya']           ?? 0,
+        km:             m['km']              ?? '',
+        keterangan:     m['keterangan']      ?? '',
+        buktiBayar: ImageHelper.decodeList(
+            m['bukti_bayar'] ?? ''),
       );
 
   PerbaikanModel copyWith({
     int? id, String? tanggal, int? tahun,
     String? jenisPerbaikan, String? namaBengkel,
     int? biaya, String? km, String? keterangan,
-    String? buktiBayar,
+    List<String>? buktiBayar,
   }) => PerbaikanModel(
     id:             id             ?? this.id,
     tanggal:        tanggal        ?? this.tanggal,
@@ -63,5 +66,6 @@ class PerbaikanModel {
     buktiBayar:     buktiBayar     ?? this.buktiBayar,
   );
 
-  bool get hasBukti => buktiBayar.isNotEmpty;
+  bool get hasBukti    => buktiBayar.isNotEmpty;
+  int  get jumlahBukti => buktiBayar.length;
 }
