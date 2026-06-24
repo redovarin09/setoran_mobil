@@ -6,6 +6,7 @@ import '../../core/utils/week_helper.dart';
 import '../../models/setoran_model.dart';
 import '../../widgets/currency_input.dart';
 import '../../widgets/date_picker_field.dart';
+import '../../widgets/bukti_bayar_widget.dart';
 
 class InputSetoranSheet extends StatefulWidget {
   final int mingguKe;
@@ -36,6 +37,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
   late int _potongan;
   late int _dibayarkan;
   late TextEditingController _catatanCtrl;
+  late String _buktiBayar;
 
   int get _total => _setoran - _potongan;
   int get _sisa  => (_total - _dibayarkan).clamp(0, 999999999);
@@ -56,6 +58,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
     _potongan   = e?.potongan   ?? 0;
     _dibayarkan = e?.dibayarkan ?? 0;
     _catatanCtrl = TextEditingController(text: e?.catatan ?? '');
+    _buktiBayar = e?.buktiBayar ?? '';
   }
 
   @override
@@ -86,6 +89,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
       potongan:   _potongan,
       dibayarkan: _dibayarkan,
       catatan:    _catatanCtrl.text,
+      buktiBayar: _buktiBayar,
     );
 
     if (widget.existing == null) {
@@ -292,6 +296,12 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                       ),
                     ],
                   ),
+
+                  const Divider(height: 20),
+		  BuktiBayarWidget(
+		    initialFileName: _buktiBayar,
+		    onChanged: (fileName) => _buktiBayar = fileName,
+		  ),                
 
                   const SizedBox(height: 20),
 

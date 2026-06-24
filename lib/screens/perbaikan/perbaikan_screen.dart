@@ -255,14 +255,29 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
                             ),
                           ),
                         ),
-                        Text(
-                          CurrencyFormatter.format(p.biaya),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: AppColors.danger,
-                          ),
-                        ),
+                        Row(
+			  children: [
+			    if (p.hasBukti)
+			      Container(
+			        margin: const EdgeInsets.only(right: 6),
+			        padding: const EdgeInsets.all(4),
+			        decoration: BoxDecoration(
+			          color: AppColors.success.withValues(alpha: 0.1),
+			          borderRadius: BorderRadius.circular(6),
+			        ),
+			        child: const Icon(Icons.photo_camera,
+			            size: 14, color: AppColors.success),
+			      ),
+			    Text(
+			      CurrencyFormatter.format(p.biaya),
+			      style: const TextStyle(
+			        fontWeight: FontWeight.bold,
+			        fontSize: 14,
+			        color: AppColors.danger,
+			      ),
+			    ),
+			  ],
+			),
                       ],
                     ),
                     const SizedBox(height: 4),

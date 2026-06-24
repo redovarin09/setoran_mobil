@@ -293,7 +293,22 @@ class _SetoranScreenState extends State<SetoranScreen> {
                     ],
                   ),
                   if (!isEmpty)
-                    StatusBadge(status: data.keterangan)
+		    Row(
+		      children: [
+		        if (data.hasBukti)
+		          Container(
+		            margin: const EdgeInsets.only(right: 6),
+		            padding: const EdgeInsets.all(4),
+		            decoration: BoxDecoration(
+		              color: AppColors.success.withValues(alpha: 0.1),
+		              borderRadius: BorderRadius.circular(6),
+		            ),
+		            child: const Icon(Icons.photo_camera,
+		                size: 14, color: AppColors.success),
+		          ),
+		        StatusBadge(status: data.keterangan),
+		      ],
+		    )
                   else
                     Container(
                       padding: const EdgeInsets.symmetric(

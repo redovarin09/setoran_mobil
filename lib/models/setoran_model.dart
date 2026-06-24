@@ -1,16 +1,17 @@
 class SetoranModel {
   final int? id;
-  final int mingguKe;       // 1-4
-  final int bulan;          // 1-12
-  final int tahun;          // 2026
-  final String tanggal;     // DD/MM/YYYY
-  final int setoran;        // nominal setoran
-  final int potongan;       // potongan
-  final int totalSetoran;   // setoran - potongan
-  final int dibayarkan;     // yang sudah dibayar
-  final int sisa;           // totalSetoran - dibayarkan
-  final String keterangan;  // Lunas / Kurang
-  final String catatan;     // catatan bebas
+  final int mingguKe;
+  final int bulan;
+  final int tahun;
+  final String tanggal;
+  final int setoran;
+  final int potongan;
+  final int totalSetoran;
+  final int dibayarkan;
+  final int sisa;
+  final String keterangan;
+  final String catatan;
+  final String buktiBayar; // ← nama file foto
 
   SetoranModel({
     this.id,
@@ -25,9 +26,9 @@ class SetoranModel {
     required this.sisa,
     required this.keterangan,
     this.catatan = '',
+    this.buktiBayar = '',
   });
 
-  // Hitung otomatis
   factory SetoranModel.hitung({
     int? id,
     required int mingguKe,
@@ -38,10 +39,10 @@ class SetoranModel {
     int potongan = 0,
     required int dibayarkan,
     String catatan = '',
+    String buktiBayar = '',
   }) {
     final total = setoran - potongan;
     final sisa  = total - dibayarkan;
-    final ket   = sisa <= 0 ? 'Lunas' : 'Kurang';
     return SetoranModel(
       id: id,
       mingguKe: mingguKe,
@@ -53,69 +54,66 @@ class SetoranModel {
       totalSetoran: total,
       dibayarkan: dibayarkan,
       sisa: sisa < 0 ? 0 : sisa,
-      keterangan: ket,
+      keterangan: sisa <= 0 ? 'Lunas' : 'Kurang',
       catatan: catatan,
+      buktiBayar: buktiBayar,
     );
   }
 
   Map<String, dynamic> toMap() => {
-    'id':           id,
-    'minggu_ke':    mingguKe,
-    'bulan':        bulan,
-    'tahun':        tahun,
-    'tanggal':      tanggal,
-    'setoran':      setoran,
-    'potongan':     potongan,
-    'total_setoran':totalSetoran,
-    'dibayarkan':   dibayarkan,
-    'sisa':         sisa,
-    'keterangan':   keterangan,
-    'catatan':      catatan,
+    'id':            id,
+    'minggu_ke':     mingguKe,
+    'bulan':         bulan,
+    'tahun':         tahun,
+    'tanggal':       tanggal,
+    'setoran':       setoran,
+    'potongan':      potongan,
+    'total_setoran': totalSetoran,
+    'dibayarkan':    dibayarkan,
+    'sisa':          sisa,
+    'keterangan':    keterangan,
+    'catatan':       catatan,
+    'bukti_bayar':   buktiBayar,
   };
 
-  factory SetoranModel.fromMap(Map<String, dynamic> map) => SetoranModel(
-    id:           map['id'],
-    mingguKe:     map['minggu_ke'],
-    bulan:        map['bulan'],
-    tahun:        map['tahun'],
-    tanggal:      map['tanggal'] ?? '',
-    setoran:      map['setoran'] ?? 0,
-    potongan:     map['potongan'] ?? 0,
-    totalSetoran: map['total_setoran'] ?? 0,
-    dibayarkan:   map['dibayarkan'] ?? 0,
-    sisa:         map['sisa'] ?? 0,
-    keterangan:   map['keterangan'] ?? '',
-    catatan:      map['catatan'] ?? '',
-  );
+  factory SetoranModel.fromMap(Map<String, dynamic> m) =>
+      SetoranModel(
+        id:           m['id'],
+        mingguKe:     m['minggu_ke'],
+        bulan:        m['bulan'],
+        tahun:        m['tahun'],
+        tanggal:      m['tanggal'] ?? '',
+        setoran:      m['setoran'] ?? 0,
+        potongan:     m['potongan'] ?? 0,
+        totalSetoran: m['total_setoran'] ?? 0,
+        dibayarkan:   m['dibayarkan'] ?? 0,
+        sisa:         m['sisa'] ?? 0,
+        keterangan:   m['keterangan'] ?? '',
+        catatan:      m['catatan'] ?? '',
+        buktiBayar:   m['bukti_bayar'] ?? '',
+      );
 
   SetoranModel copyWith({
-    int? id,
-    int? mingguKe,
-    int? bulan,
-    int? tahun,
-    String? tanggal,
-    int? setoran,
-    int? potongan,
-    int? totalSetoran,
-    int? dibayarkan,
-    int? sisa,
-    String? keterangan,
-    String? catatan,
-  }) =>
-    SetoranModel(
-      id:           id           ?? this.id,
-      mingguKe:     mingguKe     ?? this.mingguKe,
-      bulan:        bulan        ?? this.bulan,
-      tahun:        tahun        ?? this.tahun,
-      tanggal:      tanggal      ?? this.tanggal,
-      setoran:      setoran      ?? this.setoran,
-      potongan:     potongan     ?? this.potongan,
-      totalSetoran: totalSetoran ?? this.totalSetoran,
-      dibayarkan:   dibayarkan   ?? this.dibayarkan,
-      sisa:         sisa         ?? this.sisa,
-      keterangan:   keterangan   ?? this.keterangan,
-      catatan:      catatan      ?? this.catatan,
-    );
+    int? id, int? mingguKe, int? bulan, int? tahun,
+    String? tanggal, int? setoran, int? potongan,
+    int? totalSetoran, int? dibayarkan, int? sisa,
+    String? keterangan, String? catatan, String? buktiBayar,
+  }) => SetoranModel(
+    id:           id           ?? this.id,
+    mingguKe:     mingguKe     ?? this.mingguKe,
+    bulan:        bulan        ?? this.bulan,
+    tahun:        tahun        ?? this.tahun,
+    tanggal:      tanggal      ?? this.tanggal,
+    setoran:      setoran      ?? this.setoran,
+    potongan:     potongan     ?? this.potongan,
+    totalSetoran: totalSetoran ?? this.totalSetoran,
+    dibayarkan:   dibayarkan   ?? this.dibayarkan,
+    sisa:         sisa         ?? this.sisa,
+    keterangan:   keterangan   ?? this.keterangan,
+    catatan:      catatan      ?? this.catatan,
+    buktiBayar:   buktiBayar   ?? this.buktiBayar,
+  );
 
   bool get isLunas => keterangan == 'Lunas';
+  bool get hasBukti => buktiBayar.isNotEmpty;
 }

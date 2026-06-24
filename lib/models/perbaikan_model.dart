@@ -7,6 +7,7 @@ class PerbaikanModel {
   final int biaya;
   final String km;
   final String keterangan;
+  final String buktiBayar; // ← nama file foto
 
   PerbaikanModel({
     this.id,
@@ -17,6 +18,7 @@ class PerbaikanModel {
     required this.biaya,
     this.km = '',
     this.keterangan = '',
+    this.buktiBayar = '',
   });
 
   Map<String, dynamic> toMap() => {
@@ -28,37 +30,38 @@ class PerbaikanModel {
     'biaya':           biaya,
     'km':              km,
     'keterangan':      keterangan,
+    'bukti_bayar':     buktiBayar,
   };
 
-  factory PerbaikanModel.fromMap(Map<String, dynamic> map) => PerbaikanModel(
-    id:              map['id'],
-    tanggal:         map['tanggal'] ?? '',
-    tahun:           map['tahun'] ?? 2026,
-    jenisPerbaikan:  map['jenis_perbaikan'] ?? '',
-    namaBengkel:     map['nama_bengkel'] ?? '',
-    biaya:           map['biaya'] ?? 0,
-    km:              map['km'] ?? '',
-    keterangan:      map['keterangan'] ?? '',
-  );
+  factory PerbaikanModel.fromMap(Map<String, dynamic> m) =>
+      PerbaikanModel(
+        id:             m['id'],
+        tanggal:        m['tanggal'] ?? '',
+        tahun:          m['tahun'] ?? 2026,
+        jenisPerbaikan: m['jenis_perbaikan'] ?? '',
+        namaBengkel:    m['nama_bengkel'] ?? '',
+        biaya:          m['biaya'] ?? 0,
+        km:             m['km'] ?? '',
+        keterangan:     m['keterangan'] ?? '',
+        buktiBayar:     m['bukti_bayar'] ?? '',
+      );
 
   PerbaikanModel copyWith({
-    int? id,
-    String? tanggal,
-    int? tahun,
-    String? jenisPerbaikan,
-    String? namaBengkel,
-    int? biaya,
-    String? km,
-    String? keterangan,
-  }) =>
-    PerbaikanModel(
-      id:             id             ?? this.id,
-      tanggal:        tanggal        ?? this.tanggal,
-      tahun:          tahun          ?? this.tahun,
-      jenisPerbaikan: jenisPerbaikan ?? this.jenisPerbaikan,
-      namaBengkel:    namaBengkel    ?? this.namaBengkel,
-      biaya:          biaya          ?? this.biaya,
-      km:             km             ?? this.km,
-      keterangan:     keterangan     ?? this.keterangan,
-    );
+    int? id, String? tanggal, int? tahun,
+    String? jenisPerbaikan, String? namaBengkel,
+    int? biaya, String? km, String? keterangan,
+    String? buktiBayar,
+  }) => PerbaikanModel(
+    id:             id             ?? this.id,
+    tanggal:        tanggal        ?? this.tanggal,
+    tahun:          tahun          ?? this.tahun,
+    jenisPerbaikan: jenisPerbaikan ?? this.jenisPerbaikan,
+    namaBengkel:    namaBengkel    ?? this.namaBengkel,
+    biaya:          biaya          ?? this.biaya,
+    km:             km             ?? this.km,
+    keterangan:     keterangan     ?? this.keterangan,
+    buktiBayar:     buktiBayar     ?? this.buktiBayar,
+  );
+
+  bool get hasBukti => buktiBayar.isNotEmpty;
 }

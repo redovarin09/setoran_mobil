@@ -5,6 +5,7 @@ import '../../core/utils/week_helper.dart';
 import '../../models/perbaikan_model.dart';
 import '../../widgets/currency_input.dart';
 import '../../widgets/date_picker_field.dart';
+import '../../widgets/bukti_bayar_widget.dart';
 
 class InputPerbaikanSheet extends StatefulWidget {
   final int tahun;
@@ -32,6 +33,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
   late TextEditingController _kmCtrl;
   late TextEditingController _keteranganCtrl;
   late int _biaya;
+  late String _buktiBayar;
 
   final List<String> _jenisSaran = [
     'Servis Rutin', 'Oli', 'Kaki-Kaki', 'Rem',
@@ -51,6 +53,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
     _kmCtrl         = TextEditingController(text: e?.km ?? '');
     _keteranganCtrl = TextEditingController(text: e?.keterangan ?? '');
     _biaya          = e?.biaya ?? 0;
+    _buktiBayar = e?.buktiBayar ?? '';
   }
 
   @override
@@ -89,6 +92,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
       biaya:          _biaya,
       km:             _kmCtrl.text.trim(),
       keterangan:     _keteranganCtrl.text.trim(),
+      buktiBayar:     _buktiBayar,
     );
 
     if (widget.existing == null) {
@@ -303,6 +307,12 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                     ),
                   ),
                   const SizedBox(height: 20),
+
+		  const Divider(height: 20),
+		  BuktiBayarWidget(
+		    initialFileName: _buktiBayar,
+		    onChanged: (fileName) => _buktiBayar = fileName,
+		  ),
 
                   // Tombol
                   Row(
