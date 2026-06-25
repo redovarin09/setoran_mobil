@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../../models/setoran_model.dart';
 import '../../models/perbaikan_model.dart';
+import '../utils/image_helper.dart';
 
 class DbHelper {
   static final DbHelper _instance = DbHelper._internal();
@@ -252,18 +253,36 @@ class DbHelper {
   // ─── BACKUP & RESTORE ──────────────────────────────
 
   Future<Map<String, dynamic>> exportToJson(int tahun) async {
-    final setoran   = await getSetoranByBulanAll(tahun);
-    final perbaikan = await getPerbaikanByTahun(tahun);
-    final sisa      = await getSisaTahunLalu();
-    return {
-      'versi':           1,
-      'tahun':           tahun,
-      'sisa_tahun_lalu': sisa,
-      'setoran':  setoran.map((s) => s.toMap()).toList(),
-      'perbaikan':perbaikan.map((p) => p.toMap()).toList(),
-      'exported_at': DateTime.now().toIso8601String(),
-    };
+  final setoran   = await getSetoranByBulanAll(tahun);
+  final perbaikan = await getPerbaikanByTahun(tahun);
+  final sisa      = await getSisaTahunLalu();
+
+  // Kumpulkan semua nama file foto yang unik
+  final allFileNames = <String>{};
+  for (final s in setoran) {
+    allFileNames.addAll(s.buktiBayar);
   }
+  for (final p in perbaikan) {
+    allFileNames.addAll(p.buktiBayar);
+  }
+
+  // Encode semua foto ke base64
+  final Map<String, String> imagesBase64 = {};
+  for (final name in allFileNames) {
+    final b64 = await ImageHelper.toBase64(name);
+    if (b64 != null) imagesBase64[name] = b64;
+  }
+
+  return {
+    'versi':           2,
+    'tahun':           tahun,
+    'sisa_tahun_lalu': sisa,
+    'setoran':   setoran.map((s) => s.toMap()).toList(),
+    'perbaikan': perbaikan.map((p) => p.toMap()).toList(),
+    'images':    imagesBase64,  // ← foto ikut di sini
+    'exported_at': DateTime.now().toIso8601String(),
+  };
+}
 
   Future<List<SetoranModel>> getSetoranByBulanAll(int tahun) async {
     final d    = await db;
@@ -275,29 +294,42 @@ class DbHelper {
   }
 
   Future<void> importFromJson(Map<String, dynamic> json) async {
-    final d     = await db;
-    final tahun = json['tahun'] as int;
-    final sisa  = json['sisa_tahun_lalu'] as int;
+  final d     = await db;
+  final tahun = json['tahun'] as int;
+  final sisa  = json['sisa_tahun_lalu'] as int;
 
-    await d.transaction((txn) async {
-      await txn.delete('setoran',
-          where: 'tahun = ?', whereArgs: [tahun]);
-      await txn.delete('perbaikan',
-          where: 'tahun = ?', whereArgs: [tahun]);
-
-      for (final m in (json['setoran'] as List)) {
-        final map = Map<String, dynamic>.from(m)..remove('id');
-        await txn.insert('setoran', map);
-      }
-      for (final m in (json['perbaikan'] as List)) {
-        final map = Map<String, dynamic>.from(m)..remove('id');
-        await txn.insert('perbaikan', map);
-      }
-      await txn.insert('konfigurasi',
-          {'kunci': 'sisa_tahun_lalu', 'nilai': sisa.toString()},
-          conflictAlgorithm: ConflictAlgorithm.replace);
-    });
+  // ── Restore foto terlebih dahulu ──────────────────
+  final images = json['images'] as Map<String, dynamic>?;
+  if (images != null) {
+    for (final entry in images.entries) {
+      final fileName = entry.key;
+      final b64      = entry.value as String;
+      await ImageHelper.fromBase64(fileName, b64);
+    }
   }
+
+  // ── Restore data DB ───────────────────────────────
+  await d.transaction((txn) async {
+    await txn.delete('setoran',
+        where: 'tahun = ?', whereArgs: [tahun]);
+    await txn.delete('perbaikan',
+        where: 'tahun = ?', whereArgs: [tahun]);
+
+    for (final m in (json['setoran'] as List)) {
+      final map = Map<String, dynamic>.from(m)..remove('id');
+      await txn.insert('setoran', map);
+    }
+    for (final m in (json['perbaikan'] as List)) {
+      final map = Map<String, dynamic>.from(m)..remove('id');
+      await txn.insert('perbaikan', map);
+    }
+    await txn.insert(
+      'konfigurasi',
+      {'kunci': 'sisa_tahun_lalu', 'nilai': sisa.toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  });
+}
 
   Future<void> resetSemuaData() async {
     final d = await db;
