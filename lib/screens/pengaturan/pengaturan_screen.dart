@@ -412,6 +412,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         (json['perbaikan'] as List?)?.length ?? 0;
     final exportedAt    =
         json['exported_at']?.toString().substring(0, 10) ?? '-';
+    final jmlFoto 	= (json['images'] as Map?)?.length ?? 0;
 
     if (!mounted) return;
     final confirm = await showDialog<bool>(
@@ -428,6 +429,8 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
             _infoRow('Data Setoran', '$jmlSetoran entri'),
             _infoRow('Data Perbaikan', '$jmlPerbaikan entri'),
             _infoRow('Dibuat', exportedAt),
+	    _infoRow('Foto Bukti', '$jmlFoto file'),
+
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
