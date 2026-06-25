@@ -361,9 +361,8 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
     if (result == null || result.trim().isEmpty) return;
 
-    Map<String, dynamic> json;
     try {
-      json = jsonDecode(result.trim()) as Map<String, dynamic>;
+      jsonDecode(result.trim()); // validasi format
     } catch (_) {
       _showError(
           'Teks bukan format JSON yang valid. '
