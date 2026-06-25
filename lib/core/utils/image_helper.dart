@@ -26,6 +26,14 @@ class ImageHelper {
     return fileName;
   }
 
+  static Future<String> saveFromBytes(
+      String fileName, List<int> bytes) async {
+    final dir  = await _getBuktiDir();
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+    return fileName;
+  }
+
   static Future<void> delete(String fileName) async {
     if (fileName.isEmpty) return;
     try {
@@ -47,28 +55,47 @@ class ImageHelper {
     return File(path).exists();
   }
 
-  // ─── Konversi List <-> String untuk DB ─────────────
+  // ─── Base64 untuk backup ────────────────────────────
 
-  /// List<String> → JSON string untuk disimpan di DB
+  static Future<String?> toBase64(String fileName) async {
+    try {
+      if (fileName.isEmpty) return null;
+      final path  = await getFullPath(fileName);
+      final file  = File(path);
+      if (!await file.exists()) return null;
+      final bytes = await file.readAsBytes();
+      return base64Encode(bytes);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> fromBase64(
+      String fileName, String b64) async {
+    try {
+      final bytes = base64Decode(b64);
+      await saveFromBytes(fileName, bytes);
+      return fileName;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─── Encode/Decode List untuk DB ───────────────────
+
   static String encodeList(List<String> list) {
     if (list.isEmpty) return '';
     return jsonEncode(list);
   }
 
-  /// JSON string dari DB → List<String>
-  /// Backward compatible: string biasa (1 foto lama) juga bisa
   static List<String> decodeList(String raw) {
     if (raw.isEmpty) return [];
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is List) {
-        return decoded.cast<String>();
-      }
-      // Kalau bukan list (format lama), bungkus jadi list
+      if (decoded is List) return decoded.cast<String>();
       return [raw];
     } catch (_) {
-      // Format lama: string biasa = 1 filename
-      return [raw];
+      return raw.isEmpty ? [] : [raw];
     }
   }
 }
