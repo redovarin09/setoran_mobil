@@ -30,6 +30,8 @@ jobs:
 
       - name: Setup Python & generate icon
         run: |
+          # Debug: cek panjang secret
+          echo "Panjang KEYSTORE_BASE64: ${#KEYSTORE_BASE64}"
           pip install pillow
           python3 scripts/generate_icon.py
 
