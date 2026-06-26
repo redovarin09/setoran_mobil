@@ -36,7 +36,7 @@ android {
             if (keyPropertiesFile.exists()) {
                 keyAlias = keyProperties["keyAlias"] as String
                 keyPassword = keyProperties["keyPassword"] as String
-                storeFile = file(keyProperties["storeFile"] as String)
+                storeFile = file("release.jks")
                 storePassword = keyProperties["storePassword"] as String
             }
         }
