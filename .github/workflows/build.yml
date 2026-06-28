@@ -30,8 +30,6 @@ jobs:
 
       - name: Setup Python & generate icon
         run: |
-          # Debug: cek panjang secret
-          echo "Panjang KEYSTORE_BASE64: ${#KEYSTORE_BASE64}"
           pip install pillow
           python3 scripts/generate_icon.py
 
@@ -42,17 +40,15 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          # Decode pakai Python (paling reliable)
           python3 << 'PYEOF'
           import base64, os
           b64 = os.environ['KEYSTORE_BASE64'].strip()
           data = base64.b64decode(b64)
           with open('android/app/release.jks', 'wb') as f:
               f.write(data)
-          print(f"Keystore decoded: {len(data)} bytes")
+          print(f"✅ Keystore decoded: {len(data)} bytes")
           PYEOF
 
-          # Buat key.properties
           cat > android/key.properties << 'KEYPROPS'
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
@@ -60,7 +56,6 @@ jobs:
           storeFile=release.jks
           KEYPROPS
 
-          # Verifikasi keystore valid
           keytool -list \
             -keystore android/app/release.jks \
             -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
