@@ -45,7 +45,6 @@ class DbHelper {
         UNIQUE(minggu_ke, bulan, tahun)
       )
     ''');
-
     await db.execute('''
       CREATE TABLE perbaikan (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,14 +58,12 @@ class DbHelper {
         bukti_bayar      TEXT    NOT NULL DEFAULT ''
       )
     ''');
-
     await db.execute('''
       CREATE TABLE konfigurasi (
         kunci TEXT PRIMARY KEY,
         nilai TEXT NOT NULL
       )
     ''');
-
     await db.insert('konfigurasi', {
       'kunci': 'sisa_tahun_lalu',
       'nilai': '2284584',
@@ -76,7 +73,6 @@ class DbHelper {
   Future<void> _onUpgrade(
       Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Tambah kolom bukti_bayar ke tabel yang sudah ada
       try {
         await db.execute(
           'ALTER TABLE setoran ADD COLUMN '
@@ -111,7 +107,8 @@ class DbHelper {
 
   Future<int> deleteSetoran(int id) async {
     final d = await db;
-    return d.delete('setoran', where: 'id = ?', whereArgs: [id]);
+    return d.delete('setoran',
+        where: 'id = ?', whereArgs: [id]);
   }
 
   Future<List<SetoranModel>> getSetoranByBulan(
@@ -143,9 +140,20 @@ class DbHelper {
     );
     final map = <int, int>{};
     for (final row in result) {
-      map[row['bulan'] as int] = (row['total'] as int?) ?? 0;
+      map[row['bulan'] as int] =
+          (row['total'] as int?) ?? 0;
     }
     return map;
+  }
+
+  Future<List<SetoranModel>> getSetoranByBulanAll(
+      int tahun) async {
+    final d    = await db;
+    final rows = await d.query('setoran',
+        where: 'tahun = ?',
+        whereArgs: [tahun],
+        orderBy: 'bulan ASC, minggu_ke ASC');
+    return rows.map(SetoranModel.fromMap).toList();
   }
 
   // ─── PERBAIKAN CRUD ────────────────────────────────
@@ -163,10 +171,12 @@ class DbHelper {
 
   Future<int> deletePerbaikan(int id) async {
     final d = await db;
-    return d.delete('perbaikan', where: 'id = ?', whereArgs: [id]);
+    return d.delete('perbaikan',
+        where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<List<PerbaikanModel>> getPerbaikanByTahun(int tahun) async {
+  Future<List<PerbaikanModel>> getPerbaikanByTahun(
+      int tahun) async {
     final d    = await db;
     final rows = await d.query('perbaikan',
         where: 'tahun = ?',
@@ -178,7 +188,8 @@ class DbHelper {
   Future<int> getTotalPerbaikan(int tahun) async {
     final d      = await db;
     final result = await d.rawQuery(
-      'SELECT SUM(biaya) as total FROM perbaikan WHERE tahun = ?',
+      'SELECT SUM(biaya) as total FROM perbaikan '
+      'WHERE tahun = ?',
       [tahun],
     );
     return (result.first['total'] as int?) ?? 0;
@@ -189,16 +200,21 @@ class DbHelper {
   Future<int> getSisaTahunLalu() async {
     final d    = await db;
     final rows = await d.query('konfigurasi',
-        where: 'kunci = ?', whereArgs: ['sisa_tahun_lalu']);
+        where: 'kunci = ?',
+        whereArgs: ['sisa_tahun_lalu']);
     if (rows.isEmpty) return 0;
-    return int.tryParse(rows.first['nilai'] as String) ?? 0;
+    return int.tryParse(
+            rows.first['nilai'] as String) ?? 0;
   }
 
   Future<void> setSisaTahunLalu(int nilai) async {
     final d = await db;
-    await d.insert('konfigurasi',
-        {'kunci': 'sisa_tahun_lalu', 'nilai': nilai.toString()},
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'sisa_tahun_lalu',
+       'nilai': nilai.toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<bool> isSetupDone() async {
@@ -210,126 +226,136 @@ class DbHelper {
 
   Future<void> setSetupDone() async {
     final d = await db;
-    await d.insert('konfigurasi',
-        {'kunci': 'setup_done', 'nilai': '1'},
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'setup_done', 'nilai': '1'},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<String> getKendaraanNama() async {
     final d    = await db;
     final rows = await d.query('konfigurasi',
-        where: 'kunci = ?', whereArgs: ['kendaraan_nama']);
+        where: 'kunci = ?',
+        whereArgs: ['kendaraan_nama']);
     if (rows.isEmpty) return 'Kendaraan';
     return rows.first['nilai'] as String;
   }
 
   Future<void> setKendaraanNama(String nama) async {
     final d = await db;
-    await d.insert('konfigurasi',
-        {'kunci': 'kendaraan_nama', 'nilai': nama},
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'kendaraan_nama', 'nilai': nama},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> carryOverKeTahunDepan(int tahunAsal) async {
     final grand = await _hitungGrandTotal(tahunAsal);
     final d     = await db;
-    await d.insert('konfigurasi',
-        {'kunci': 'sisa_tahun_lalu', 'nilai': grand.abs().toString()},
-        conflictAlgorithm: ConflictAlgorithm.replace);
-    await d.insert('konfigurasi', {
-      'kunci': 'sisa_${tahunAsal}_to_${tahunAsal + 1}',
-      'nilai': grand.toString()
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'sisa_tahun_lalu',
+       'nilai': grand.abs().toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    await d.insert(
+      'konfigurasi',
+      {
+        'kunci': 'sisa_${tahunAsal}_to_${tahunAsal + 1}',
+        'nilai': grand.toString(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<int> _hitungGrandTotal(int tahun) async {
-    final sisa    = await getSisaTahunLalu();
-    final perBulan= await getAllSisaPerBulan(tahun);
-    final total   = perBulan.values.fold(0, (a, b) => a + b);
-    final pbk     = await getTotalPerbaikan(tahun);
+    final sisa     = await getSisaTahunLalu();
+    final perBulan = await getAllSisaPerBulan(tahun);
+    final total    =
+        perBulan.values.fold(0, (a, b) => a + b);
+    final pbk      = await getTotalPerbaikan(tahun);
     return sisa + total - pbk;
   }
 
-  // ─── BACKUP & RESTORE ──────────────────────────────
+  // ─── BACKUP + FOTO ─────────────────────────────────
 
   Future<Map<String, dynamic>> exportToJson(int tahun) async {
-  final setoran   = await getSetoranByBulanAll(tahun);
-  final perbaikan = await getPerbaikanByTahun(tahun);
-  final sisa      = await getSisaTahunLalu();
+    final setoran   = await getSetoranByBulanAll(tahun);
+    final perbaikan = await getPerbaikanByTahun(tahun);
+    final sisa      = await getSisaTahunLalu();
 
-  // Kumpulkan semua nama file foto yang unik
-  final allFileNames = <String>{};
-  for (final s in setoran) {
-    allFileNames.addAll(s.buktiBayar);
-  }
-  for (final p in perbaikan) {
-    allFileNames.addAll(p.buktiBayar);
-  }
-
-  // Encode semua foto ke base64
-  final Map<String, String> imagesBase64 = {};
-  for (final name in allFileNames) {
-    final b64 = await ImageHelper.toBase64(name);
-    if (b64 != null) imagesBase64[name] = b64;
-  }
-
-  return {
-    'versi':           2,
-    'tahun':           tahun,
-    'sisa_tahun_lalu': sisa,
-    'setoran':   setoran.map((s) => s.toMap()).toList(),
-    'perbaikan': perbaikan.map((p) => p.toMap()).toList(),
-    'images':    imagesBase64,  // ← foto ikut di sini
-    'exported_at': DateTime.now().toIso8601String(),
-  };
-}
-
-  Future<List<SetoranModel>> getSetoranByBulanAll(int tahun) async {
-    final d    = await db;
-    final rows = await d.query('setoran',
-        where: 'tahun = ?',
-        whereArgs: [tahun],
-        orderBy: 'bulan ASC, minggu_ke ASC');
-    return rows.map(SetoranModel.fromMap).toList();
-  }
-
-  Future<void> importFromJson(Map<String, dynamic> json) async {
-  final d     = await db;
-  final tahun = json['tahun'] as int;
-  final sisa  = json['sisa_tahun_lalu'] as int;
-
-  // ── Restore foto terlebih dahulu ──────────────────
-  final images = json['images'] as Map<String, dynamic>?;
-  if (images != null) {
-    for (final entry in images.entries) {
-      final fileName = entry.key;
-      final b64      = entry.value as String;
-      await ImageHelper.fromBase64(fileName, b64);
+    // Kumpulkan semua nama file foto
+    final allFileNames = <String>{};
+    for (final s in setoran) {
+      allFileNames.addAll(s.buktiBayar);
     }
+    for (final p in perbaikan) {
+      allFileNames.addAll(p.buktiBayar);
+    }
+
+    // Encode semua foto ke base64
+    final Map<String, String> imagesBase64 = {};
+    for (final name in allFileNames) {
+      if (name.isEmpty) continue;
+      final b64 = await ImageHelper.toBase64(name);
+      if (b64 != null) imagesBase64[name] = b64;
+    }
+
+    return {
+      'versi':           2,
+      'tahun':           tahun,
+      'sisa_tahun_lalu': sisa,
+      'setoran':   setoran.map((s) => s.toMap()).toList(),
+      'perbaikan': perbaikan.map((p) => p.toMap()).toList(),
+      'images':    imagesBase64,
+      'exported_at': DateTime.now().toIso8601String(),
+    };
   }
 
-  // ── Restore data DB ───────────────────────────────
-  await d.transaction((txn) async {
-    await txn.delete('setoran',
-        where: 'tahun = ?', whereArgs: [tahun]);
-    await txn.delete('perbaikan',
-        where: 'tahun = ?', whereArgs: [tahun]);
+  Future<void> importFromJson(
+      Map<String, dynamic> json) async {
+    final d     = await db;
+    final tahun = json['tahun'] as int;
+    final sisa  = json['sisa_tahun_lalu'] as int;
 
-    for (final m in (json['setoran'] as List)) {
-      final map = Map<String, dynamic>.from(m)..remove('id');
-      await txn.insert('setoran', map);
+    // 1. Restore foto dulu
+    final images =
+        json['images'] as Map<String, dynamic>?;
+    if (images != null) {
+      for (final entry in images.entries) {
+        final fileName = entry.key as String;
+        final b64      = entry.value as String;
+        await ImageHelper.fromBase64(fileName, b64);
+      }
     }
-    for (final m in (json['perbaikan'] as List)) {
-      final map = Map<String, dynamic>.from(m)..remove('id');
-      await txn.insert('perbaikan', map);
-    }
-    await txn.insert(
-      'konfigurasi',
-      {'kunci': 'sisa_tahun_lalu', 'nilai': sisa.toString()},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  });
-}
+
+    // 2. Restore data DB
+    await d.transaction((txn) async {
+      await txn.delete('setoran',
+          where: 'tahun = ?', whereArgs: [tahun]);
+      await txn.delete('perbaikan',
+          where: 'tahun = ?', whereArgs: [tahun]);
+
+      for (final m in (json['setoran'] as List)) {
+        final map =
+            Map<String, dynamic>.from(m)..remove('id');
+        await txn.insert('setoran', map);
+      }
+      for (final m in (json['perbaikan'] as List)) {
+        final map =
+            Map<String, dynamic>.from(m)..remove('id');
+        await txn.insert('perbaikan', map);
+      }
+      await txn.insert(
+        'konfigurasi',
+        {'kunci': 'sisa_tahun_lalu',
+         'nilai': sisa.toString()},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    });
+  }
 
   Future<void> resetSemuaData() async {
     final d = await db;
