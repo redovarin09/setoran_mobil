@@ -325,7 +325,7 @@ class DbHelper {
         json['images'] as Map<String, dynamic>?;
     if (images != null) {
       for (final entry in images.entries) {
-        final fileName = entry.key as String;
+        final fileName = entry.key;
         final b64      = entry.value as String;
         await ImageHelper.fromBase64(fileName, b64);
       }
