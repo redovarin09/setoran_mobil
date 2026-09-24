@@ -1,0 +1,52 @@
+name: deps-sync
+
+# Regenerasi pubspec.lock saat pubspec.yaml berubah di branch fitur,
+# lalu commit ke branch itu. Commit oleh GITHUB_TOKEN tidak memicu CI,
+# jadi CI baru jalan pada push berikutnya setelah git pull --rebase.
+
+on:
+  push:
+    branches:
+      - 'feat/**'
+    paths:
+      - 'pubspec.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deps-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Sync lockfile
+        run: flutter pub get
+
+      - name: Commit lockfile
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "bot@github.com"
+          git add pubspec.lock
+          git commit -m "chore(deps): sync pubspec.lock via Actions" \
+            || echo "Nothing new to commit"
+          git push
