@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/constants/app_colors.dart';
 import 'core/database/db_helper.dart';
-import 'screens/onboarding/onboarding_screen.dart';
-import 'screens/dashboard/dashboard_screen.dart';
-import 'screens/setoran/setoran_screen.dart';
-import 'screens/perbaikan/perbaikan_screen.dart';
-import 'screens/pengaturan/pengaturan_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
+import 'features/dashboard/dashboard_screen.dart';
+import 'features/setoran/setoran_screen.dart';
+import 'features/perbaikan/perbaikan_screen.dart';
+import 'features/pengaturan/pengaturan_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {

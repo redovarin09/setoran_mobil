@@ -4,9 +4,9 @@ import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/week_helper.dart';
 import '../../models/setoran_model.dart';
-import '../../widgets/currency_input.dart';
-import '../../widgets/date_picker_field.dart';
-import '../../widgets/bukti_bayar_widget.dart';
+import '../../widgets/bersama/currency_input.dart';
+import '../../widgets/bersama/date_picker_field.dart';
+import '../../widgets/bersama/bukti_bayar_widget.dart';
 
 class InputSetoranSheet extends StatefulWidget {
   final int mingguKe;
