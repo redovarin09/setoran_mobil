@@ -28,11 +28,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Setup Python & generate icon
-        run: |
-          pip install pillow
-          python3 scripts/generate_icon.py
-
       - name: Generate launcher icons
         run: dart run flutter_launcher_icons
 
