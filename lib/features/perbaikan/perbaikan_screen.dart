@@ -24,6 +24,7 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
   int _totalBiaya    = 0;
   bool _loading      = true;
   bool _showSearch   = false;
+  String? _error;
 
   @override
   void initState() {
@@ -38,19 +39,29 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final data  = await _db.getPerbaikanByTahun(_tahun);
-    final total = await _db.getTotalPerbaikan(_tahun);
-    // Urutan tanggal ASC kronologis (FR-16): kolom TEXT DD/MM/YYYY
-    // tidak terurut benar via SQL string-sort lintas bulan.
-    data.sort((a, b) => WeekHelper.parse(a.tanggal)
-        .compareTo(WeekHelper.parse(b.tanggal)));
     setState(() {
-      _data       = data;
-      _totalBiaya = total;
-      _loading    = false;
+      _loading = true;
+      _error = null;
     });
-    _applySearch(_searchCtrl.text);
+    try {
+      final data  = await _db.getPerbaikanByTahun(_tahun);
+      final total = await _db.getTotalPerbaikan(_tahun);
+      // Urutan tanggal ASC kronologis (FR-16): kolom TEXT DD/MM/YYYY
+      // tidak terurut benar via SQL string-sort lintas bulan.
+      data.sort((a, b) => WeekHelper.parse(a.tanggal)
+          .compareTo(WeekHelper.parse(b.tanggal)));
+      setState(() {
+        _data       = data;
+        _totalBiaya = total;
+        _loading    = false;
+      });
+      _applySearch(_searchCtrl.text);
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'Gagal memuat perbaikan: $e';
+      });
+    }
   }
 
   void _applySearch(String query) {
@@ -131,7 +142,36 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator(
                     color: AppColors.primary))
-                : _filtered.isEmpty
+                : _error != null
+                    ? Center(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
+                            children: [
+                              Text(_error!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                      color:
+                                          AppColors.textMedium)),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: _load,
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        AppColors.primary),
+                                child: const Text(
+                                    'Coba Lagi',
+                                    style: TextStyle(
+                                        color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : _filtered.isEmpty
                     ? _buildEmpty()
                     : RefreshIndicator(
                         onRefresh: _load,

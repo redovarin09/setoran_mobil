@@ -167,10 +167,14 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                 Row(
                   children: [
                     if (widget.existing != null)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: AppColors.danger),
-                        onPressed: _hapus,
+                      Semantics(
+                        hint: 'tindakan permanen, perlu konfirmasi',
+                        button: true,
+                        child: IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: AppColors.danger),
+                          onPressed: _hapus,
+                        ),
                       ),
                     IconButton(
                       icon: const Icon(Icons.close),

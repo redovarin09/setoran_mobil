@@ -26,6 +26,7 @@ class _SetoranScreenState extends State<SetoranScreen> {
   List<SetoranModel> _data = [];
   int _totalSisa = 0;
   bool _loading  = true;
+  String? _error;
 
   // Jumlah kartu DINAMIS ikut jadwal hari (FR-10, NQ-1).
   int get _jumlahMinggu =>
@@ -38,20 +39,30 @@ class _SetoranScreenState extends State<SetoranScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final results = await Future.wait([
-      _db.getSetoranByBulan(_bulan, _tahun),
-      _db.getTotalSisaByBulan(_bulan, _tahun),
-      _db.getJadwalHari(),
-      _db.getJumlahMingguan(),
-    ]);
     setState(() {
-      _data           = results[0] as List<SetoranModel>;
-      _totalSisa      = results[1] as int;
-      _jadwalHari     = results[2] as int;
-      _defaultNominal = results[3] as int;
-      _loading        = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final results = await Future.wait([
+        _db.getSetoranByBulan(_bulan, _tahun),
+        _db.getTotalSisaByBulan(_bulan, _tahun),
+        _db.getJadwalHari(),
+        _db.getJumlahMingguan(),
+      ]);
+      setState(() {
+        _data           = results[0] as List<SetoranModel>;
+        _totalSisa      = results[1] as int;
+        _jadwalHari     = results[2] as int;
+        _defaultNominal = results[3] as int;
+        _loading        = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'Gagal memuat setoran: $e';
+      });
+    }
   }
 
   SetoranModel? _getByMinggu(int minggu) {
@@ -105,7 +116,36 @@ class _SetoranScreenState extends State<SetoranScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator(
                     color: AppColors.primary))
-                : RefreshIndicator(
+                : _error != null
+                    ? Center(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
+                            children: [
+                              Text(_error!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                      color:
+                                          AppColors.textMedium)),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: _load,
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        AppColors.primary),
+                                child: const Text(
+                                    'Coba Lagi',
+                                    style: TextStyle(
+                                        color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : RefreshIndicator(
                     onRefresh: _load,
                     color: AppColors.primary,
                     child: ListView.builder(

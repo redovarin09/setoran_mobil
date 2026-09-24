@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/terbilang.dart';
 import '../../core/utils/week_helper.dart';
 import '../../models/pembayaran_log_model.dart';
 import '../../models/setoran_model.dart';
@@ -231,10 +232,14 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                 Row(
                   children: [
                     if (widget.existing != null)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: AppColors.danger),
-                        onPressed: _hapus,
+                      Semantics(
+                        hint: 'tindakan permanen, perlu konfirmasi',
+                        button: true,
+                        child: IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: AppColors.danger),
+                          onPressed: _hapus,
+                        ),
                       ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -373,6 +378,8 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                               ? AppColors.danger
                               : AppColors.success,
                           bold: true,
+                          semantics:
+                              'Sisa ${terbilangRp(_sisaBaru)}',
                         ),
                         if (_kembalianBaru > 0)
                           _row(
@@ -385,23 +392,27 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                         const SizedBox(height: 4),
                         Align(
                           alignment: Alignment.centerRight,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _ket == 'Lunas'
-                                  ? AppColors.successLight
-                                  : AppColors.dangerLight,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _ket,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
                                 color: _ket == 'Lunas'
-                                    ? AppColors.success
-                                    : AppColors.danger,
+                                    ? AppColors.successLight
+                                    : AppColors.dangerLight,
+                                borderRadius:
+                                    BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                _ket,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _ket == 'Lunas'
+                                      ? AppColors.success
+                                      : AppColors.danger,
+                                ),
                               ),
                             ),
                           ),
@@ -570,7 +581,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
   }
 
   Widget _row(String label, String value,
-      {Color? color, bool bold = false}) {
+      {Color? color, bool bold = false, String? semantics}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -579,12 +590,25 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
           Text(label,
               style: const TextStyle(
                   fontSize: 12, color: AppColors.textMedium)),
-          Text(value,
-              style: TextStyle(
-                fontSize: 13,
-                color: color ?? AppColors.textDark,
-                fontWeight: bold ? FontWeight.bold : FontWeight.w500,
-              )),
+          semantics == null
+              ? Text(value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: color ?? AppColors.textDark,
+                    fontWeight:
+                        bold ? FontWeight.bold : FontWeight.w500,
+                  ))
+              : Semantics(
+                  label: semantics,
+                  child: Text(value,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: color ?? AppColors.textDark,
+                        fontWeight: bold
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                      )),
+                ),
         ],
       ),
     );
