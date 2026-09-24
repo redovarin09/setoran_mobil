@@ -49,6 +49,21 @@ class ImageHelper {
     }
   }
 
+  /// Hapus seluruh isi folder bukti_bayar (untuk reset total FR-26).
+  /// File yang hilang dilewati (E-8).
+  static Future<void> hapusSemuaFoto() async {
+    try {
+      final dir = await _getBuktiDir();
+      await for (final e in dir.list()) {
+        if (e is File) {
+          try {
+            await e.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
   static Future<bool> exists(String fileName) async {
     if (fileName.isEmpty) return false;
     final path = await getFullPath(fileName);

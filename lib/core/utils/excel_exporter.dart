@@ -4,7 +4,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../constants/app_strings.dart';
 import '../database/db_helper.dart';
+import '../error/app_error.dart';
+import 'backup.dart';
 import 'currency_formatter.dart';
+import 'week_helper.dart';
 
 class ExcelExporter {
   static Future<void> exportTahun(int tahun) async {
@@ -18,7 +21,6 @@ class ExcelExporter {
     // ── Sheet 1: Setoran Per Bulan ──────────────────
     excel.rename('Sheet1', 'Setoran $tahun');
     final sheetSetor = excel['Setoran $tahun'];
-
     // Header
     final headers = [
       'Bulan', 'Minggu', 'Tanggal',
@@ -46,7 +48,7 @@ class ExcelExporter {
       for (final s in data) {
         final values = [
           AppStrings.bulan[b - 1],
-          'Minggu ${s.mingguKe}',
+          'Periode ${s.mingguKe}',
           s.tanggal,
           s.setoran,
           s.potongan,
@@ -108,7 +110,11 @@ class ExcelExporter {
     }
 
     var rPbk = 1;
-    for (final p in perbaikan) {
+    // Kronologis seperti layar (kolom TEXT tak terurut via SQL).
+    final pbkUrut = List.of(perbaikan)
+      ..sort((a, b) => WeekHelper.parse(a.tanggal)
+          .compareTo(WeekHelper.parse(b.tanggal)));
+    for (final p in pbkUrut) {
       final vals = [
         p.tanggal, p.jenisPerbaikan,
         p.namaBengkel, p.biaya, p.km, p.keterangan
@@ -138,7 +144,7 @@ class ExcelExporter {
 
     // ── Sheet 3: Grand Total ────────────────────────
     final sheetGT  = excel['Grand Total'];
-    final namaKend = await db.getKendaraanNama();
+    final namaKend = await db.getJenisKendaraan();
     final totalSet = perBulan.values.fold(0, (a, b) => a + b);
     final grandTot = sisaLalu + totalSet - totalPbk;
 
@@ -174,16 +180,21 @@ class ExcelExporter {
       }
     }
 
-    // Simpan & share
-    final bytes   = excel.save()!;
+    // Simpan & share (E-16: larang null-assert buta).
+    final bytes = excel.save();
+    if (bytes == null) {
+      throw const AppError(
+          AppErrorCode.io, 'Gagal menyusun file Excel');
+    }
     final dir     = await getApplicationDocumentsDirectory();
-    final path    = '${dir.path}/Setoran_${namaKend}_$tahun.xlsx';
+    final aman    = sanitasiNamaFile(namaKend);
+    final path    = '${dir.path}/Setoran_${aman}_$tahun.xlsx';
     await File(path).writeAsBytes(bytes);
 
     await Share.shareXFiles(
       [XFile(path)],
       text: 'Laporan Setoran $namaKend $tahun',
-      subject: 'Setoran_${namaKend}_$tahun.xlsx',
+      subject: 'Setoran_${aman}_$tahun.xlsx',
     );
   }
 }

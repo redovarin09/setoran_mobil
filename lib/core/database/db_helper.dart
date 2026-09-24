@@ -3,6 +3,8 @@ import 'package:path/path.dart';
 import '../../models/setoran_model.dart';
 import '../../models/pembayaran_log_model.dart';
 import '../../models/perbaikan_model.dart';
+import '../error/app_error.dart';
+import '../utils/backup.dart';
 import '../utils/image_helper.dart';
 
 class DbHelper {
@@ -468,10 +470,11 @@ class DbHelper {
   Future<void> carryOverKeTahunDepan(int tahunAsal) async {
     final grand = await _hitungGrandTotal(tahunAsal);
     final d     = await db;
+    // Bertanda asli (OQ-3): minus tetap minus, larang abs().
     await d.insert(
       'konfigurasi',
       {'kunci': 'sisa_tahun_lalu',
-       'nilai': grand.abs().toString()},
+       'nilai': grand.toString()},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
     await d.insert(
@@ -547,6 +550,8 @@ class DbHelper {
 
   Future<void> importFromJson(
       Map<String, dynamic> json) async {
+    // E-23: tolak versi tak dikenal sebelum menyentuh data.
+    cekVersiBackup(json);
     final d     = await db;
     final tahun = json['tahun'] as int;
     final sisa  = json['sisa_tahun_lalu'] as int;
@@ -624,9 +629,14 @@ class DbHelper {
     });
   }
 
+  /// Reset TOTAL (OQ-10): hapus setoran + perbaikan + log + foto +
+  /// konfigurasi → kembali onboarding.
   Future<void> resetSemuaData() async {
     final d = await db;
+    await d.delete('pembayaran_log');
     await d.delete('setoran');
     await d.delete('perbaikan');
+    await d.delete('konfigurasi');
+    await ImageHelper.hapusSemuaFoto();
   }
 }
