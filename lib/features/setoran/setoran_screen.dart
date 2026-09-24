@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/tahun.dart';
 import '../../core/utils/week_helper.dart';
 import '../../models/setoran_model.dart';
 import '../../widgets/bersama/info_row.dart';
@@ -20,12 +21,15 @@ class _SetoranScreenState extends State<SetoranScreen> {
 
   int _bulan  = DateTime.now().month;
   int _tahun  = DateTime.now().year;
+  int _jadwalHari = 0;
+  int _defaultNominal = 0;
   List<SetoranModel> _data = [];
   int _totalSisa = 0;
   bool _loading  = true;
 
-  // Jumlah minggu DINAMIS sesuai bulan
-  int get _jumlahMinggu => WeekHelper.jumlahMinggu(_bulan, _tahun);
+  // Jumlah kartu DINAMIS ikut jadwal hari (FR-10, NQ-1).
+  int get _jumlahMinggu =>
+      WeekHelper.jumlahJatuhTempo(_jadwalHari, _bulan, _tahun);
 
   @override
   void initState() {
@@ -35,12 +39,18 @@ class _SetoranScreenState extends State<SetoranScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data  = await _db.getSetoranByBulan(_bulan, _tahun);
-    final total = await _db.getTotalSisaByBulan(_bulan, _tahun);
+    final results = await Future.wait([
+      _db.getSetoranByBulan(_bulan, _tahun),
+      _db.getTotalSisaByBulan(_bulan, _tahun),
+      _db.getJadwalHari(),
+      _db.getJumlahMingguan(),
+    ]);
     setState(() {
-      _data      = data;
-      _totalSisa = total;
-      _loading   = false;
+      _data           = results[0] as List<SetoranModel>;
+      _totalSisa      = results[1] as int;
+      _jadwalHari     = results[2] as int;
+      _defaultNominal = results[3] as int;
+      _loading        = false;
     });
   }
 
@@ -61,6 +71,8 @@ class _SetoranScreenState extends State<SetoranScreen> {
         mingguKe: mingguKe,
         bulan:    _bulan,
         tahun:    _tahun,
+        jadwalHari: _jadwalHari,
+        defaultNominal: _defaultNominal,
         existing: _getByMinggu(mingguKe),
         onSaved:  _load,
       ),
@@ -217,10 +229,14 @@ class _SetoranScreenState extends State<SetoranScreen> {
     final data    = _getByMinggu(minggu);
     final isEmpty = data == null;
 
-    // Tanggal default pakai WeekHelper
-    final tglDefault = WeekHelper.tanggalMinggu(
-        minggu, _bulan, _tahun);
+    // Tanggal default = hari jatuh tempo ke-N ikut jadwal (FR-10).
+    final tglDefault = WeekHelper.tanggalJatuhTempo(
+        minggu, _jadwalHari, _bulan, _tahun);
     final tglStr = WeekHelper.format(tglDefault);
+    final hariIni =
+        WeekHelper.hariPendek[_jadwalHari];
+    final labelPeriode =
+        'Periode $minggu · $hariIni ${tglDefault.day}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -272,7 +288,7 @@ class _SetoranScreenState extends State<SetoranScreen> {
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
                         children: [
-                          Text('Minggu ke-$minggu',
+                          Text(labelPeriode,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
@@ -399,7 +415,7 @@ class _SetoranScreenState extends State<SetoranScreen> {
       context: context,
       builder: (_) => SimpleDialog(
         title: const Text('Pilih Tahun'),
-        children: [2024, 2025, 2026, 2027].map((y) {
+        children: daftarTahun(DateTime.now().year).map((y) {
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(context, y),
             child: Text('$y',

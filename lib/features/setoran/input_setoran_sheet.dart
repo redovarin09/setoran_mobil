@@ -3,15 +3,23 @@ import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/week_helper.dart';
+import '../../models/pembayaran_log_model.dart';
 import '../../models/setoran_model.dart';
 import '../../widgets/bersama/currency_input.dart';
 import '../../widgets/bersama/date_picker_field.dart';
 import '../../widgets/bersama/bukti_bayar_widget.dart';
 
+// Sheet input setoran + log cicilan (FR-11..FR-14, US-4/5/14).
+// Aturan: tiap simpan cicilan = append pembayaran_log; koreksi via
+// reversal (nominal negatif); larang timpa diam-diam (OQ-6).
+// Foto BARU selalu menempel pada entri log cicilan (Q3 tech-design);
+// foto lama (header) hanya kompatibilitas baca.
 class InputSetoranSheet extends StatefulWidget {
   final int mingguKe;
   final int bulan;
   final int tahun;
+  final int jadwalHari;
+  final int defaultNominal;
   final SetoranModel? existing;
   final VoidCallback onSaved;
 
@@ -20,6 +28,8 @@ class InputSetoranSheet extends StatefulWidget {
     required this.mingguKe,
     required this.bulan,
     required this.tahun,
+    required this.jadwalHari,
+    required this.defaultNominal,
     this.existing,
     required this.onSaved,
   });
@@ -35,46 +45,88 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
   late DateTime _tanggal;
   late int _setoran;
   late int _potongan;
-  late int _dibayarkan;
+  int _cicilan = 0;
+  bool _isKoreksi = false;
   late TextEditingController _catatanCtrl;
+  late TextEditingController _cicilanCatatanCtrl;
   late List<String> _buktiBayar;
+  late List<String> _buktiAwal;
+  List<PembayaranLogModel> _logs = [];
+  bool _logsLoading = true;
 
   int get _total => _setoran - _potongan;
-  int get _sisa  => (_total - _dibayarkan).clamp(0, 999999999);
-  String get _ket => (_total - _dibayarkan) <= 0 ? 'Lunas' : 'Kurang';
+  int get _dibayarkanLama => widget.existing?.dibayarkan ?? 0;
+  int get _cicilanEfektif => _isKoreksi ? -_cicilan : _cicilan;
+  int get _dibayarkanBaru => _dibayarkanLama + _cicilanEfektif;
+  // Sisa mentah bertanda (OQ-7): minus tampil apa adanya.
+  int get _sisaBaru => _total - _dibayarkanBaru;
+  int get _kembalianBaru => _sisaBaru < 0 ? -_sisaBaru : 0;
+  String get _ket => _sisaBaru <= 0 ? 'Lunas' : 'Kurang';
+
+  /// Foto yang ditambah pada sesi ini → milik entri log, bukan header.
+  List<String> get _buktiBaru => _buktiBayar
+      .where((f) => !_buktiAwal.contains(f))
+      .toList();
 
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
 
-    // Tanggal default: Senin minggu ke-N bulan ini
     _tanggal = e != null
         ? WeekHelper.parse(e.tanggal)
-        : WeekHelper.tanggalMinggu(
-            widget.mingguKe, widget.bulan, widget.tahun);
+        : WeekHelper.tanggalJatuhTempo(
+            widget.mingguKe,
+            widget.jadwalHari,
+            widget.bulan,
+            widget.tahun);
 
-    _setoran    = e?.setoran    ?? 700000;
-    _potongan   = e?.potongan   ?? 0;
-    _dibayarkan = e?.dibayarkan ?? 0;
+    _setoran    = e?.setoran  ?? widget.defaultNominal;
+    _potongan   = e?.potongan ?? 0;
     _catatanCtrl = TextEditingController(text: e?.catatan ?? '');
+    _cicilanCatatanCtrl = TextEditingController();
     _buktiBayar = List.from(e?.buktiBayar ?? []);
+    _buktiAwal  = List.from(e?.buktiBayar ?? []);
+    _loadLogs();
+  }
+
+  Future<void> _loadLogs() async {
+    final id = widget.existing?.id;
+    if (id == null) {
+      setState(() => _logsLoading = false);
+      return;
+    }
+    final logs = await _db.getLogBySetoran(id);
+    if (!mounted) return;
+    setState(() {
+      _logs = logs;
+      _logsLoading = false;
+    });
   }
 
   @override
   void dispose() {
     _catatanCtrl.dispose();
+    _cicilanCatatanCtrl.dispose();
     super.dispose();
+  }
+
+  void _tolak(String pesan) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(pesan),
+        backgroundColor: AppColors.danger,
+      ),
+    );
   }
 
   Future<void> _simpan() async {
     if (_setoran == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nominal setoran tidak boleh 0'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      _tolak('Nominal setoran tidak boleh 0');
+      return;
+    }
+    if (_cicilanEfektif == 0 && _buktiBaru.isNotEmpty) {
+      _tolak('Isi nominal cicilan untuk menyimpan foto baru');
       return;
     }
     setState(() => _loading = true);
@@ -87,16 +139,27 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
       tanggal:    WeekHelper.format(_tanggal),
       setoran:    _setoran,
       potongan:   _potongan,
-      dibayarkan: _dibayarkan,
+      dibayarkan: _dibayarkanBaru,
       catatan:    _catatanCtrl.text,
-      buktiBayar: _buktiBayar,
+      // Header: hanya foto lama yang dipertahankan (kompat baca).
+      buktiBayar: _buktiBayar
+          .where((f) =>
+              _buktiAwal.contains(f) || !_buktiBaru.contains(f))
+          .toList(),
     );
 
-    if (widget.existing == null) {
-      await _db.insertSetoran(model);
-    } else {
-      await _db.updateSetoran(model);
+    PembayaranLogModel? cicilan;
+    if (_cicilanEfektif != 0) {
+      cicilan = PembayaranLogModel(
+        setoranId:  widget.existing?.id ?? 0,
+        waktuIso:   DateTime.now().toIso8601String(),
+        nominal:    _cicilanEfektif,
+        bukti:      _buktiBaru,
+        catatan:    _cicilanCatatanCtrl.text.trim(),
+      );
     }
+
+    await _db.simpanSetoranLengkap(model, cicilan: cicilan);
 
     setState(() => _loading = false);
     widget.onSaved();
@@ -108,7 +171,8 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Hapus Data'),
-        content: Text('Hapus setoran Minggu ${widget.mingguKe}?'),
+        content:
+            Text('Hapus setoran Periode ${widget.mingguKe}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -131,6 +195,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final hariIni = WeekHelper.hariPendek[widget.jadwalHari];
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -156,7 +221,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Setoran Minggu ${widget.mingguKe}',
+                  'Periode ${widget.mingguKe} · $hariIni',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -192,7 +257,6 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
               ),
               child: Column(
                 children: [
-                  // DatePicker — tidak bisa salah format lagi
                   DatePickerField(
                     label: 'Tanggal',
                     initialDate: _tanggal,
@@ -209,18 +273,84 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                   ),
 
                   CurrencyInput(
-                    label: 'Potongan',
+                    label: 'Potongan (manual)',
                     initialValue: _potongan,
                     onChanged: (v) => setState(() => _potongan = v),
                   ),
 
+                  // Cicilan baru / koreksi
+                  Row(
+                    children: [
+                      const Text('Cicilan baru',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textMedium,
+                            fontWeight: FontWeight.w500,
+                          )),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _isKoreksi = !_isKoreksi),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _isKoreksi
+                                ? AppColors.danger
+                                : AppColors.background,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: AppColors.divider),
+                          ),
+                          child: Text(
+                            _isKoreksi
+                                ? 'Koreksi (−)'
+                                : 'Koreksi?',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: _isKoreksi
+                                  ? Colors.white
+                                  : AppColors.textLight,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
                   CurrencyInput(
-                    label: 'Dibayarkan',
-                    initialValue: _dibayarkan,
-                    onChanged: (v) => setState(() => _dibayarkan = v),
+                    label: _isKoreksi
+                        ? 'Nominal koreksi'
+                        : 'Nominal cicilan',
+                    initialValue: 0,
+                    onChanged: (v) => setState(() => _cicilan = v),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Catatan cicilan',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textMedium,
+                            fontWeight: FontWeight.w500,
+                          )),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _cicilanCatatanCtrl,
+                        maxLines: 1,
+                        decoration: const InputDecoration(
+                          hintText: 'Opsional...',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
 
-                  // Preview otomatis
+                  // Preview live bertanda asli
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -233,16 +363,25 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                         _row('Total Setoran',
                             CurrencyFormatter.format(_total)),
                         _row('Dibayarkan',
-                            CurrencyFormatter.format(_dibayarkan)),
+                            '${CurrencyFormatter.format(_dibayarkanLama)}'
+                            ' → ${CurrencyFormatter.format(_dibayarkanBaru)}'),
                         const Divider(height: 16),
                         _row(
                           'Sisa',
-                          CurrencyFormatter.format(_sisa),
-                          color: _sisa > 0
+                          CurrencyFormatter.format(_sisaBaru),
+                          color: _sisaBaru > 0
                               ? AppColors.danger
                               : AppColors.success,
                           bold: true,
                         ),
+                        if (_kembalianBaru > 0)
+                          _row(
+                            'Kembalian',
+                            CurrencyFormatter.format(
+                                _kembalianBaru),
+                            color: AppColors.warning,
+                            bold: true,
+                          ),
                         const SizedBox(height: 4),
                         Align(
                           alignment: Alignment.centerRight,
@@ -273,7 +412,10 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
 
                   const SizedBox(height: 12),
 
-                  // Catatan
+                  // Riwayat cicilan
+                  _buildLogTimeline(),
+
+                  // Catatan periode
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -355,6 +497,75 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLogTimeline() {
+    if (_logsLoading) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: LinearProgressIndicator(
+            color: AppColors.primary),
+      );
+    }
+    if (_logs.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Riwayat cicilan',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textMedium,
+              fontWeight: FontWeight.w500,
+            )),
+        const SizedBox(height: 6),
+        ..._logs.map((l) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Icon(
+                    l.isReversal
+                        ? Icons.undo
+                        : Icons.payments_outlined,
+                    size: 14,
+                    color: l.isReversal
+                        ? AppColors.danger
+                        : AppColors.success,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      l.catatan.isEmpty
+                          ? l.waktuIso.split('T').first
+                          : '${l.waktuIso.split('T').first} · ${l.catatan}',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textLight),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (l.bukti.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: Icon(Icons.photo_camera,
+                          size: 12, color: AppColors.textLight),
+                    ),
+                  Text(
+                    '${l.isReversal ? '−' : '+'}'
+                    '${CurrencyFormatter.format(l.nominal.abs())}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: l.isReversal
+                          ? AppColors.danger
+                          : AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+        const Divider(height: 16),
+      ],
     );
   }
 
