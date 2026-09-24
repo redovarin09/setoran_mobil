@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../core/constants/app_colors.dart';
-import '../core/utils/image_helper.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/utils/image_helper.dart';
 import 'full_screen_image.dart';
 
 class BuktiBayarWidget extends StatefulWidget {
