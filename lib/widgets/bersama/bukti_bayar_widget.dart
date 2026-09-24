@@ -62,6 +62,8 @@ class _BuktiBayarWidgetState extends State<BuktiBayarWidget> {
         final List<XFile> picked =
             await _picker.pickMultiImage(
           imageQuality: 75,
+          maxWidth: 1280,
+          maxHeight: 1280,
           limit: remaining,
         );
         for (final xfile in picked) {
@@ -131,18 +133,20 @@ class _BuktiBayarWidgetState extends State<BuktiBayarWidget> {
   }
 
   void _lihatFull(int index) {
-    final name = _fileNames[index];
-    final path = _pathCache[name];
-    if (path == null) return;
+    // Daftar terfilter dulu agar index selaras bila ada file hilang (E-8).
+    final paths = _fileNames
+        .map((n) => _pathCache[n] ?? '')
+        .where((p) => p.isNotEmpty)
+        .toList();
+    final path = _pathCache[_fileNames[index]] ?? '';
+    final fixedIndex = paths.indexOf(path);
+    if (fixedIndex < 0) return;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => FullScreenImageGallery(
-          imagePaths:   _fileNames
-              .map((n) => _pathCache[n] ?? '')
-              .where((p) => p.isNotEmpty)
-              .toList(),
-          initialIndex: index,
+          imagePaths:   paths,
+          initialIndex: fixedIndex,
           title: 'Bukti Bayar',
         ),
       ),
@@ -321,7 +325,10 @@ class _BuktiBayarWidgetState extends State<BuktiBayarWidget> {
   }
 
   Widget _buildAddTile() {
-    return GestureDetector(
+    return Semantics(
+      label: 'Tambah foto bukti',
+      button: true,
+      child: GestureDetector(
       onTap: _showSourcePicker,
       child: Container(
         width: 90, height: 100,
@@ -353,6 +360,7 @@ class _BuktiBayarWidgetState extends State<BuktiBayarWidget> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -360,68 +368,73 @@ class _BuktiBayarWidgetState extends State<BuktiBayarWidget> {
     final name = _fileNames[index];
     final path = _pathCache[name];
 
-    return GestureDetector(
-      onTap: () => _lihatFull(index),
-      onLongPress: () => _hapusFoto(index),
-      child: Container(
-        width: 90, height: 100,
-        margin: const EdgeInsets.only(right: 8),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: AppColors.divider, width: 1),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Foto
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: path != null && File(path).existsSync()
-                  ? Image.file(File(path), fit: BoxFit.cover)
-                  : Center(
-                      child: Icon(Icons.broken_image_outlined,
-                          color: Colors.grey[400], size: 28)),
-            ),
-
-            // Nomor foto
-            Positioned(
-              top: 4, left: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold),
-                ),
+    return Semantics(
+      label: 'Bukti ${index + 1} dari ${_fileNames.length}, '
+          'ketuk untuk perbesar',
+      button: true,
+      child: GestureDetector(
+        onTap: () => _lihatFull(index),
+        onLongPress: () => _hapusFoto(index),
+        child: Container(
+          width: 90, height: 100,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: AppColors.divider, width: 1),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Foto
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: path != null && File(path).existsSync()
+                    ? Image.file(File(path), fit: BoxFit.cover)
+                    : Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: Colors.grey[400], size: 28)),
               ),
-            ),
 
-            // Tombol hapus (X)
-            Positioned(
-              top: 2, right: 2,
-              child: GestureDetector(
-                onTap: () => _hapusFoto(index),
+              // Nomor foto
+              Positioned(
+                top: 4, left: 4,
                 child: Container(
-                  width: 20, height: 20,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.danger,
-                    shape: BoxShape.circle,
+                    color: Colors.black.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Icon(Icons.close,
-                      size: 12, color: Colors.white),
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              // Tombol hapus (X)
+              Positioned(
+                top: 2, right: 2,
+                child: GestureDetector(
+                  onTap: () => _hapusFoto(index),
+                  child: Container(
+                    width: 20, height: 20,
+                    decoration: BoxDecoration(
+                      color: AppColors.danger,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close,
+                        size: 12, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
