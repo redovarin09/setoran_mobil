@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/tahun.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,7 +20,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _sisaTahunLalu      = 0;
   Map<int, int> _perBulan = {};
   int _totalPerbaikan     = 0;
-  String _namaKendaraan   = 'Kendaraan';
+  String _jenisKendaraan  = 'Kendaraan Saya';
+  String _platNomor       = '';
   bool _loading           = true;
   int? _touchedIndex;
 
@@ -40,16 +42,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _db.getSisaTahunLalu(),
       _db.getAllSisaPerBulan(_tahun),
       _db.getTotalPerbaikan(_tahun),
-      _db.getKendaraanNama(),
+      _db.getJenisKendaraan(),
+      _db.getPlatNomor(),
     ]);
     setState(() {
       _sisaTahunLalu   = results[0] as int;
       _perBulan        = results[1] as Map<int, int>;
       _totalPerbaikan  = results[2] as int;
-      _namaKendaraan   = results[3] as String;
+      _jenisKendaraan  = results[3] as String;
+      _platNomor       = results[4] as String;
       _loading         = false;
     });
   }
+
+  String get _headerKendaraan =>
+      _platNomor.isEmpty ? _jenisKendaraan : '$_jenisKendaraan · $_platNomor';
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             const Text('Dashboard'),
             Text(
-              _namaKendaraan,
+              _headerKendaraan,
               style: const TextStyle(
                 fontSize: 12,
                 color: Colors.white70,
@@ -189,7 +196,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$_namaKendaraan · $_tahun',
+                '$_headerKendaraan · $_tahun',
                 style: const TextStyle(
                     color: Colors.white70, fontSize: 12),
               ),
@@ -213,7 +220,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            CurrencyFormatter.format(_grandTotal.abs()),
+            // Bertanda asli (OQ-3): minus tampil '-Rp…', larang abs().
+            CurrencyFormatter.format(_grandTotal),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 28,
@@ -559,10 +567,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     Text(
                       CurrencyFormatter.format(sisa),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.danger,
+                        color: sisa > 0
+                            ? AppColors.danger
+                            : AppColors.success,
                       ),
                     ),
                   ],
@@ -668,7 +678,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (_) => SimpleDialog(
         title: const Text('Pilih Tahun'),
-        children: [2024, 2025, 2026, 2027].map((y) {
+        children: daftarTahun(DateTime.now().year).map((y) {
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(context, y),
             child: Text('$y',
