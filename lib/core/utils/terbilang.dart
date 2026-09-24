@@ -33,7 +33,7 @@ String _belasan(int n) {
   if (n < 1000) {
     final r = n ~/ 100;
     final s = n % 100;
-    final depan = '$r ratus'.replaceFirst('satu ratus', 'seratus');
+    final depan = r == 1 ? 'seratus' : '${_belasan(r)} ratus';
     return s == 0 ? depan : '$depan ${_belasan(s)}';
   }
   return '';
