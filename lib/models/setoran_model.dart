@@ -55,7 +55,8 @@ class SetoranModel {
       potongan:     potongan,
       totalSetoran: total,
       dibayarkan:   dibayarkan,
-      sisa:         sisa < 0 ? 0 : sisa,
+      // Bertanda asli (OQ-7): minus tampil apa adanya.
+      sisa:         sisa,
       keterangan:   sisa <= 0 ? 'Lunas' : 'Kurang',
       catatan:      catatan,
       buktiBayar:   buktiBayar ?? [],

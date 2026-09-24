@@ -1,4 +1,59 @@
 class WeekHelper {
+  /// Label pendek hari, index 0=Minggu..6=Sabtu (tech-design §1).
+  static const List<String> hariPendek = [
+    'Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab',
+  ];
+
+  /// 0=Minggu..6=Sabtu → DateTime.weekday (Senin=1..Minggu=7).
+  static int _weekday(int jadwalHari) =>
+      jadwalHari == 0 ? DateTime.sunday : jadwalHari;
+
+  /// Jumlah hari jatuh tempo dalam satu bulan (generalisasi OQ-4:
+  /// dulu selalu Minggu).
+  static int jumlahJatuhTempo(
+      int jadwalHari, int bulan, int tahun) {
+    final lastDay = DateTime(tahun, bulan + 1, 0).day;
+    final target  = _weekday(jadwalHari);
+    int count = 0;
+    for (int d = 1; d <= lastDay; d++) {
+      if (DateTime(tahun, bulan, d).weekday == target) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /// Tanggal jatuh tempo ke-N; fallback hari terakhir bulan.
+  static DateTime tanggalJatuhTempo(
+      int n, int jadwalHari, int bulan, int tahun) {
+    final lastDay = DateTime(tahun, bulan + 1, 0).day;
+    final target  = _weekday(jadwalHari);
+    int count = 0;
+    for (int d = 1; d <= lastDay; d++) {
+      final dt = DateTime(tahun, bulan, d);
+      if (dt.weekday == target) {
+        count++;
+        if (count == n) return dt;
+      }
+    }
+    return DateTime(tahun, bulan + 1, 0);
+  }
+
+  /// Semua tanggal jatuh tempo dalam satu bulan.
+  static List<DateTime> semuaJatuhTempo(
+      int jadwalHari, int bulan, int tahun) {
+    final lastDay = DateTime(tahun, bulan + 1, 0).day;
+    final target  = _weekday(jadwalHari);
+    final result  = <DateTime>[];
+    for (int d = 1; d <= lastDay; d++) {
+      final dt = DateTime(tahun, bulan, d);
+      if (dt.weekday == target) {
+        result.add(dt);
+      }
+    }
+    return result;
+  }
+
   /// Hitung jumlah hari MINGGU (Sunday) dalam satu bulan
   static int jumlahMinggu(int bulan, int tahun) {
     final lastDay = DateTime(tahun, bulan + 1, 0).day;

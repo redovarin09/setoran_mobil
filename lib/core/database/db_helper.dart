@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../../models/setoran_model.dart';
+import '../../models/pembayaran_log_model.dart';
 import '../../models/perbaikan_model.dart';
 import '../utils/image_helper.dart';
 
@@ -20,7 +21,10 @@ class DbHelper {
     final path = join(await getDatabasesPath(), 'setoran_mobil.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -64,6 +68,21 @@ class DbHelper {
         nilai TEXT NOT NULL
       )
     ''');
+    await db.execute('''
+      CREATE TABLE pembayaran_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        setoran_id  INTEGER NOT NULL
+                    REFERENCES setoran(id) ON DELETE CASCADE,
+        waktu       TEXT    NOT NULL,
+        nominal     INTEGER NOT NULL CHECK(nominal != 0),
+        bukti_bayar TEXT    NOT NULL DEFAULT '',
+        catatan     TEXT    NOT NULL DEFAULT ''
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_pembayaran_log_setoran '
+      'ON pembayaran_log(setoran_id)',
+    );
     await db.insert('konfigurasi', {
       'kunci': 'sisa_tahun_lalu',
       'nilai': '0',
@@ -73,29 +92,74 @@ class DbHelper {
   Future<void> _onUpgrade(
       Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      try {
-        await db.execute(
-          'ALTER TABLE setoran ADD COLUMN '
-          'bukti_bayar TEXT NOT NULL DEFAULT ""',
-        );
-      } catch (_) {}
-      try {
-        await db.execute(
-          'ALTER TABLE perbaikan ADD COLUMN '
-          'bukti_bayar TEXT NOT NULL DEFAULT ""',
-        );
-      } catch (_) {}
+      // E-18: gagal migrasi wajib dilaporkan, bukan try/catch kosong.
+      for (final sql in [
+        'ALTER TABLE setoran ADD COLUMN '
+        'bukti_bayar TEXT NOT NULL DEFAULT ""',
+        'ALTER TABLE perbaikan ADD COLUMN '
+        'bukti_bayar TEXT NOT NULL DEFAULT ""',
+      ]) {
+        try {
+          await db.execute(sql);
+        } on DatabaseException catch (e) {
+          if (!e.toString().contains('duplicate column name')) {
+            rethrow;
+          }
+        }
+      }
+    }
+    if (oldVersion < 3) {
+      // DELTA OQ-6: tabel log append-only (Q1 tech-design).
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS pembayaran_log (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          setoran_id  INTEGER NOT NULL
+                      REFERENCES setoran(id) ON DELETE CASCADE,
+          waktu       TEXT    NOT NULL,
+          nominal     INTEGER NOT NULL CHECK(nominal != 0),
+          bukti_bayar TEXT    NOT NULL DEFAULT '',
+          catatan     TEXT    NOT NULL DEFAULT ''
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_pembayaran_log_setoran '
+        'ON pembayaran_log(setoran_id)',
+      );
+      // E-1: dibayarkan existing → 1 log pembuka per setoran.
+      final rows = await db.query(
+          'setoran', columns: ['id', 'dibayarkan']);
+      final batch = db.batch();
+      for (final r in rows) {
+        final id = r['id'] as int;
+        final dibayarkan = (r['dibayarkan'] as int?) ?? 0;
+        if (dibayarkan == 0) continue;
+        final ada = await db.query('pembayaran_log',
+            columns: ['id'],
+            where: 'setoran_id = ?',
+            whereArgs: [id],
+            limit: 1);
+        if (ada.isNotEmpty) continue;
+        batch.insert('pembayaran_log', {
+          'setoran_id':  id,
+          'waktu':       DateTime.now().toIso8601String(),
+          'nominal':     dibayarkan,
+          'bukti_bayar': '',
+          'catatan':     'migrasi v2→v3',
+        });
+      }
+      await batch.commit(noResult: true);
     }
   }
 
   // ─── SETORAN CRUD ──────────────────────────────────
 
+  /// Insert polos: UNIQUE(minggu_ke,bulan,tahun) dilanggar → error,
+  /// dilarang replace diam-diam (OQ-6).
   Future<int> insertSetoran(SetoranModel s) async {
     final d = await db;
     return d.insert(
       'setoran',
       s.toMap()..remove('id'),
-      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
@@ -107,8 +171,75 @@ class DbHelper {
 
   Future<int> deleteSetoran(int id) async {
     final d = await db;
+    await d.delete('pembayaran_log',
+        where: 'setoran_id = ?', whereArgs: [id]);
     return d.delete('setoran',
         where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ─── PEMBAYARAN LOG (append-only, FR-13) ─────────────
+  // Larang UPDATE/DELETE log dari UI; koreksi = reversal negatif.
+
+  Future<int> insertLog(PembayaranLogModel l) async {
+    final d = await db;
+    return d.insert(
+        'pembayaran_log', l.toMap()..remove('id'));
+  }
+
+  Future<List<PembayaranLogModel>> getLogBySetoran(
+      int setoranId) async {
+    final d    = await db;
+    final rows = await d.query('pembayaran_log',
+        where: 'setoran_id = ?',
+        whereArgs: [setoranId],
+        orderBy: 'id ASC');
+    return rows.map(PembayaranLogModel.fromMap).toList();
+  }
+
+  /// Simpan periode + 1 cicilan (opsional) dalam 1 transaksi,
+  /// lalu hitung ulang dibayarkan (= Σ log), sisa bertanda,
+  /// keterangan dari baris setoran.
+  Future<void> simpanSetoranLengkap(
+    SetoranModel s, {
+    PembayaranLogModel? cicilan,
+  }) async {
+    final d = await db;
+    await d.transaction((txn) async {
+      int setoranId;
+      if (s.id == null) {
+        setoranId = await txn.insert(
+            'setoran', s.toMap()..remove('id'));
+      } else {
+        setoranId = s.id!;
+        await txn.update('setoran', s.toMap()..remove('id'),
+            where: 'id = ?', whereArgs: [setoranId]);
+      }
+      if (cicilan != null && cicilan.nominal != 0) {
+        await txn.insert('pembayaran_log',
+            cicilan.toMap()
+              ..remove('id')
+              ..['setoran_id'] = setoranId);
+      }
+      final sum = await txn.rawQuery(
+        'SELECT SUM(nominal) as t FROM pembayaran_log '
+        'WHERE setoran_id = ?',
+        [setoranId],
+      );
+      final dibayarkan = (sum.first['t'] as int?) ?? 0;
+      final total = s.setoran - s.potongan;
+      final sisa  = total - dibayarkan;
+      await txn.update(
+        'setoran',
+        {
+          'dibayarkan':  dibayarkan,
+          'total_setoran': total,
+          'sisa':        sisa,
+          'keterangan':  sisa <= 0 ? 'Lunas' : 'Kurang',
+        },
+        where: 'id = ?',
+        whereArgs: [setoranId],
+      );
+    });
   }
 
   Future<List<SetoranModel>> getSetoranByBulan(
@@ -369,10 +500,26 @@ class DbHelper {
     final perbaikan = await getPerbaikanByTahun(tahun);
     final sisa      = await getSisaTahunLalu();
 
+    // Log cicilan periode tahun itu (FR-13: backup wajib sertakan log).
+    final ids = setoran
+        .where((s) => s.id != null)
+        .map((s) => s.id!)
+        .toList();
+    final logs = <Map<String, dynamic>>[];
+    for (final id in ids) {
+      for (final l in await getLogBySetoran(id)) {
+        logs.add(l.toMap());
+      }
+    }
+
     // Kumpulkan semua nama file foto
     final allFileNames = <String>{};
     for (final s in setoran) {
       allFileNames.addAll(s.buktiBayar);
+    }
+    for (final l in logs) {
+      allFileNames.addAll(ImageHelper.decodeList(
+          l['bukti_bayar'] ?? ''));
     }
     for (final p in perbaikan) {
       allFileNames.addAll(p.buktiBayar);
@@ -391,6 +538,7 @@ class DbHelper {
       'tahun':           tahun,
       'sisa_tahun_lalu': sisa,
       'setoran':   setoran.map((s) => s.toMap()).toList(),
+      'pembayaran_log': logs,
       'perbaikan': perbaikan.map((p) => p.toMap()).toList(),
       'images':    imagesBase64,
       'exported_at': DateTime.now().toIso8601String(),
@@ -416,15 +564,51 @@ class DbHelper {
 
     // 2. Restore data DB
     await d.transaction((txn) async {
+      // Hapus log milik periode tahun itu dulu (jangan hapus
+      // log tahun lain), lalu setoran + perbaikan tahun itu.
+      final korban = await txn.query('setoran',
+          columns: ['id'],
+          where: 'tahun = ?',
+          whereArgs: [tahun]);
+      for (final r in korban) {
+        await txn.delete('pembayaran_log',
+            where: 'setoran_id = ?',
+            whereArgs: [r['id']]);
+      }
       await txn.delete('setoran',
           where: 'tahun = ?', whereArgs: [tahun]);
       await txn.delete('perbaikan',
           where: 'tahun = ?', whereArgs: [tahun]);
 
+      // Petakan kunci periode → id baru untuk remap log.
+      final idBaru = <String, int>{};
       for (final m in (json['setoran'] as List)) {
         final map =
             Map<String, dynamic>.from(m)..remove('id');
-        await txn.insert('setoran', map);
+        final nid = await txn.insert('setoran', map);
+        idBaru['${map['minggu_ke']}/${map['bulan']}'] = nid;
+      }
+      final daftarLog = json['pembayaran_log'] as List?;
+      if (daftarLog != null) {
+        // Ambil kunci lama dari payload setoran sebelum insert.
+        final kunciLama = <int, String>{};
+        for (final m in (json['setoran'] as List)) {
+          final map = Map<String, dynamic>.from(m);
+          if (map['id'] != null) {
+            kunciLama[map['id'] as int] =
+                '${map['minggu_ke']}/${map['bulan']}';
+          }
+        }
+        for (final l in daftarLog) {
+          final map =
+              Map<String, dynamic>.from(l)..remove('id');
+          final lama = map['setoran_id'] as int?;
+          final kunci = lama == null ? null : kunciLama[lama];
+          final nid = kunci == null ? null : idBaru[kunci];
+          if (nid == null) continue;
+          map['setoran_id'] = nid;
+          await txn.insert('pembayaran_log', map);
+        }
       }
       for (final m in (json['perbaikan'] as List)) {
         final map =
