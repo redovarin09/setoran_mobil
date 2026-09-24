@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/tahun.dart';
+import '../../core/utils/week_helper.dart';
 import '../../models/perbaikan_model.dart';
 import 'input_perbaikan_sheet.dart';
+import 'perbaikan_filter.dart';
 
 class PerbaikanScreen extends StatefulWidget {
   const PerbaikanScreen({super.key});
@@ -38,6 +41,10 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
     setState(() => _loading = true);
     final data  = await _db.getPerbaikanByTahun(_tahun);
     final total = await _db.getTotalPerbaikan(_tahun);
+    // Urutan tanggal ASC kronologis (FR-16): kolom TEXT DD/MM/YYYY
+    // tidak terurut benar via SQL string-sort lintas bulan.
+    data.sort((a, b) => WeekHelper.parse(a.tanggal)
+        .compareTo(WeekHelper.parse(b.tanggal)));
     setState(() {
       _data       = data;
       _totalBiaya = total;
@@ -47,16 +54,14 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
   }
 
   void _applySearch(String query) {
-    final q = query.toLowerCase().trim();
     setState(() {
-      _filtered = q.isEmpty
-          ? List.from(_data)
-          : _data.where((p) {
-              return p.jenisPerbaikan.toLowerCase().contains(q) ||
-                  p.namaBengkel.toLowerCase().contains(q) ||
-                  p.keterangan.toLowerCase().contains(q) ||
-                  p.tanggal.contains(q);
-            }).toList();
+      _filtered = _data.where((p) => cocokFilter(
+            jenis: p.jenisPerbaikan,
+            bengkel: p.namaBengkel,
+            keterangan: p.keterangan,
+            tanggal: p.tanggal,
+            query: query,
+          )).toList();
     });
   }
 
@@ -66,7 +71,6 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => InputPerbaikanSheet(
-        tahun:    _tahun,
         existing: existing,
         onSaved:  _load,
       ),
@@ -362,6 +366,20 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
             style: const TextStyle(
                 color: AppColors.textLight, fontSize: 14),
           ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () {
+              if (isSearch) {
+                _searchCtrl.clear();
+                _applySearch('');
+              } else {
+                _openSheet();
+              }
+            },
+            child: Text(isSearch
+                ? 'Hapus pencarian'
+                : '＋ Tambah perbaikan'),
+          ),
         ],
       ),
     );
@@ -372,7 +390,7 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
       context: context,
       builder: (_) => SimpleDialog(
         title: const Text('Pilih Tahun'),
-        children: [2024, 2025, 2026, 2027].map((y) {
+        children: daftarTahun(DateTime.now().year).map((y) {
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(context, y),
             child: Text('$y',

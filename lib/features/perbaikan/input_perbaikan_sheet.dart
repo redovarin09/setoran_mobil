@@ -8,13 +8,11 @@ import '../../widgets/bersama/date_picker_field.dart';
 import '../../widgets/bersama/bukti_bayar_widget.dart';
 
 class InputPerbaikanSheet extends StatefulWidget {
-  final int tahun;
   final PerbaikanModel? existing;
   final VoidCallback onSaved;
 
   const InputPerbaikanSheet({
     super.key,
-    required this.tahun,
     this.existing,
     required this.onSaved,
   });
@@ -86,7 +84,8 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
     final model = PerbaikanModel(
       id:             widget.existing?.id,
       tanggal:        WeekHelper.format(_tanggal),
-      tahun:          widget.tahun,
+      // Tahun ikut tanggal nota, bukan filter aktif (OQ-9).
+      tahun:          _tanggal.year,
       jenisPerbaikan: _jenisCtrl.text.trim(),
       namaBengkel:    _bengkelCtrl.text.trim(),
       biaya:          _biaya,
