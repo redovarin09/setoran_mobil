@@ -3,18 +3,16 @@ import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/week_helper.dart';
 import '../../models/perbaikan_model.dart';
-import '../../widgets/currency_input.dart';
-import '../../widgets/date_picker_field.dart';
-import '../../widgets/bukti_bayar_widget.dart';
+import '../../widgets/bersama/currency_input.dart';
+import '../../widgets/bersama/date_picker_field.dart';
+import '../../widgets/bersama/bukti_bayar_widget.dart';
 
 class InputPerbaikanSheet extends StatefulWidget {
-  final int tahun;
   final PerbaikanModel? existing;
   final VoidCallback onSaved;
 
   const InputPerbaikanSheet({
     super.key,
-    required this.tahun,
     this.existing,
     required this.onSaved,
   });
@@ -86,7 +84,8 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
     final model = PerbaikanModel(
       id:             widget.existing?.id,
       tanggal:        WeekHelper.format(_tanggal),
-      tahun:          widget.tahun,
+      // Tahun ikut tanggal nota, bukan filter aktif (OQ-9).
+      tahun:          _tanggal.year,
       jenisPerbaikan: _jenisCtrl.text.trim(),
       namaBengkel:    _bengkelCtrl.text.trim(),
       biaya:          _biaya,
@@ -168,10 +167,14 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                 Row(
                   children: [
                     if (widget.existing != null)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: AppColors.danger),
-                        onPressed: _hapus,
+                      Semantics(
+                        hint: 'tindakan permanen, perlu konfirmasi',
+                        button: true,
+                        child: IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: AppColors.danger),
+                          onPressed: _hapus,
+                        ),
                       ),
                     IconButton(
                       icon: const Icon(Icons.close),

@@ -4,6 +4,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/database/db_helper.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../core/utils/tahun.dart';
+import '../../core/utils/terbilang.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,8 +21,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _sisaTahunLalu      = 0;
   Map<int, int> _perBulan = {};
   int _totalPerbaikan     = 0;
-  String _namaKendaraan   = 'Kendaraan';
+  String _jenisKendaraan  = 'Kendaraan Saya';
+  String _platNomor       = '';
   bool _loading           = true;
+  String? _error;
   int? _touchedIndex;
 
   int get _totalSetoran =>
@@ -35,21 +39,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final results = await Future.wait([
-      _db.getSisaTahunLalu(),
-      _db.getAllSisaPerBulan(_tahun),
-      _db.getTotalPerbaikan(_tahun),
-      _db.getKendaraanNama(),
-    ]);
     setState(() {
-      _sisaTahunLalu   = results[0] as int;
-      _perBulan        = results[1] as Map<int, int>;
-      _totalPerbaikan  = results[2] as int;
-      _namaKendaraan   = results[3] as String;
-      _loading         = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final results = await Future.wait([
+        _db.getSisaTahunLalu(),
+        _db.getAllSisaPerBulan(_tahun),
+        _db.getTotalPerbaikan(_tahun),
+        _db.getJenisKendaraan(),
+        _db.getPlatNomor(),
+      ]);
+      setState(() {
+        _sisaTahunLalu   = results[0] as int;
+        _perBulan        = results[1] as Map<int, int>;
+        _totalPerbaikan  = results[2] as int;
+        _jenisKendaraan  = results[3] as String;
+        _platNomor       = results[4] as String;
+        _loading         = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'Gagal memuat dashboard: $e';
+      });
+    }
   }
+
+  String get _headerKendaraan =>
+      _platNomor.isEmpty ? _jenisKendaraan : '$_jenisKendaraan · $_platNomor';
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             const Text('Dashboard'),
             Text(
-              _namaKendaraan,
+              _headerKendaraan,
               style: const TextStyle(
                 fontSize: 12,
                 color: Colors.white70,
@@ -86,7 +105,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(
               color: AppColors.primary))
-          : RefreshIndicator(
+          : _error != null
+              ? _buildError()
+              : RefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
               child: SingleChildScrollView(
@@ -158,6 +179,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline,
+                size: 48, color: AppColors.danger),
+            const SizedBox(height: 12),
+            Text(_error ?? 'Gagal memuat data',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: AppColors.textMedium)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _load,
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary),
+              child: const Text('Coba Lagi',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildGrandTotalCard() {
     return Container(
       width: double.infinity,
@@ -189,36 +238,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$_namaKendaraan · $_tahun',
+                '$_headerKendaraan · $_tahun',
                 style: const TextStyle(
                     color: Colors.white70, fontSize: 12),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  _grandTotal >= 0 ? '✓ Positif' : '⚠ Minus',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+              Semantics(
+                liveRegion: true,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _grandTotal >= 0 ? '✓ Positif' : '⚠ Minus',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            CurrencyFormatter.format(_grandTotal.abs()),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
+          Semantics(
+            label:
+                'Grand total ${terbilangRp(_grandTotal)}',
+            child: Text(
+              // Bertanda asli (OQ-3): minus tampil '-Rp…', larang abs().
+              CurrencyFormatter.format(_grandTotal),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -324,19 +381,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .fold(0, (a, b) => a > b ? a : b)
         .toDouble();
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return Semantics(
+      label: 'Grafik sisa per bulan tahun $_tahun. '
+          'Rincian angka ada di tabel rekap di bawah.',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
       child: Column(
         children: [
           SizedBox(
@@ -470,6 +530,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -559,10 +620,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     Text(
                       CurrencyFormatter.format(sisa),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.danger,
+                        color: sisa > 0
+                            ? AppColors.danger
+                            : AppColors.success,
                       ),
                     ),
                   ],
@@ -668,7 +731,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (_) => SimpleDialog(
         title: const Text('Pilih Tahun'),
-        children: [2024, 2025, 2026, 2027].map((y) {
+        children: daftarTahun(DateTime.now().year).map((y) {
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(context, y),
             child: Text('$y',

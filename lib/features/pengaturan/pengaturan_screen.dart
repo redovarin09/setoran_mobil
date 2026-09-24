@@ -6,8 +6,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
+import '../../core/utils/backup.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/excel_exporter.dart';
+import '../../core/utils/tahun.dart';
+import '../../core/utils/week_helper.dart';
+import '../onboarding/onboarding_screen.dart';
 
 class PengaturanScreen extends StatefulWidget {
   const PengaturanScreen({super.key});
@@ -20,6 +24,32 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   final _db  = DbHelper();
   int _tahun = DateTime.now().year;
   bool _loading = false;
+  String _jenis = '';
+  String _plat = '';
+  int _jumlah = 0;
+  int _jadwal = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatInfo();
+  }
+
+  Future<void> _muatInfo() async {
+    final results = await Future.wait([
+      _db.getJenisKendaraan(),
+      _db.getPlatNomor(),
+      _db.getJumlahMingguan(),
+      _db.getJadwalHari(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _jenis   = results[0] as String;
+      _plat    = results[1] as String;
+      _jumlah  = results[2] as int;
+      _jadwal  = results[3] as int;
+    });
+  }
 
   // ─── EXPORT JSON ───────────────────────────────────
 
@@ -29,9 +59,9 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       final json    = await _db.exportToJson(_tahun);
       final jsonStr = const JsonEncoder.withIndent('  ').convert(json);
       final dir     = await getApplicationDocumentsDirectory();
-      final nama    = await _db.getKendaraanNama();
-      final fileName= 'backup_${nama}_$_tahun.json'
-          .replaceAll(' ', '_');
+      final jenis   = await _db.getJenisKendaraan();
+      final fileName=
+          'backup_${sanitasiNamaFile(jenis)}_$_tahun.json';
       final file    = File('${dir.path}/$fileName');
       await file.writeAsString(jsonStr);
 
@@ -327,7 +357,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
               controller: ctrl,
               maxLines: 6,
               decoration: const InputDecoration(
-                hintText: '{ "versi": 1, "tahun": 2026, ... }',
+                hintText: '{ "versi": 2, "tahun": 2026, ... }',
                 hintStyle: TextStyle(fontSize: 11),
                 isDense: true,
                 contentPadding: EdgeInsets.all(10),
@@ -405,8 +435,11 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     }
 
     final tahunBackup   = json['tahun'] ?? '?';
+    final versiBackup   = json['versi']?.toString() ?? '?';
     final sisaBackup    = (json['sisa_tahun_lalu'] ?? 0) as int;
     final jmlSetoran    = (json['setoran'] as List?)?.length ?? 0;
+    final jmlLog        =
+        (json['pembayaran_log'] as List?)?.length ?? 0;
     final jmlPerbaikan  =
         (json['perbaikan'] as List?)?.length ?? 0;
     final exportedAt    =
@@ -423,9 +456,11 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _infoRow('Tahun', '$tahunBackup'),
+            _infoRow('Versi', '$versiBackup'),
             _infoRow('Sisa Tahun Lalu',
                 CurrencyFormatter.format(sisaBackup)),
             _infoRow('Data Setoran', '$jmlSetoran entri'),
+            _infoRow('Cicilan', '$jmlLog entri'),
             _infoRow('Data Perbaikan', '$jmlPerbaikan entri'),
             _infoRow('Dibuat', exportedAt),
 	    _infoRow('Foto Bukti', '$jmlFoto file'),
@@ -553,6 +588,150 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     }
   }
 
+  // ─── EDIT KENDARAAN (FR-24) ──────────────────────────
+
+  Future<void> _editKendaraan() async {
+    final jenisCtrl = TextEditingController(text: _jenis);
+    final platCtrl  = TextEditingController(text: _plat);
+    if (!mounted) return;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Jenis Kendaraan'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: jenisCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Jenis (kosong → Kendaraan Saya)',
+                isDense: true,
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: platCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Plat nomor (opsional)',
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary),
+            child: const Text('Simpan',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      final jenis = jenisCtrl.text.trim().isEmpty
+          ? 'Kendaraan Saya'
+          : jenisCtrl.text.trim();
+      await _db.setJenisKendaraan(jenis);
+      await _db.setPlatNomor(platCtrl.text.trim());
+      await _muatInfo();
+      _showSuccess('Kendaraan: $jenis');
+    }
+  }
+
+  // ─── EDIT TARGET MINGGUAN (FR-24) ────────────────────
+
+  Future<void> _editTarget() async {
+    final jumlahCtrl = TextEditingController(
+        text: _jumlah.toString());
+    int jadwal = _jadwal;
+    if (!mounted) return;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setDag) => AlertDialog(
+          title: const Text('Target Mingguan'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: jumlahCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  prefixText: 'Rp ',
+                  labelText: 'Setoran per minggu',
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Jadwal hari:',
+                  style: TextStyle(fontSize: 13)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: List.generate(7, (i) {
+                  final on = i == jadwal;
+                  return GestureDetector(
+                    onTap: () => setDag(() => jadwal = i),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: on
+                            ? AppColors.primary
+                            : AppColors.background,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        WeekHelper.hariPendek[i],
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: on
+                              ? Colors.white
+                              : AppColors.textDark,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary),
+              child: const Text('Simpan',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == true) {
+      final jumlah =
+          int.tryParse(jumlahCtrl.text) ?? 0;
+      await _db.setJumlahMingguan(jumlah);
+      await _db.setJadwalHari(jadwal);
+      await _muatInfo();
+      _showSuccess('Target mingguan disimpan');
+    }
+  }
+
   // ─── CARRY OVER ────────────────────────────────────
 
   Future<void> _carryOver() async {
@@ -596,7 +775,8 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       builder: (_) => AlertDialog(
         title: const Text('⚠️ Reset Semua Data'),
         content: const Text(
-          'Akan menghapus SEMUA data setoran dan perbaikan.\n\n'
+          'Akan menghapus SEMUA data: setoran, cicilan, '
+          'perbaikan, foto, dan pengaturan — kembali ke awal.\n\n'
           'Backup terlebih dahulu!\n\n'
           'Tidak bisa dibatalkan.',
         ),
@@ -641,8 +821,14 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
     setState(() => _loading = true);
     await _db.resetSemuaData();
-    setState(() => _loading = false);
-    _showSuccess('Semua data berhasil dihapus');
+    if (!mounted) return;
+    // FR-26: kembali ke onboarding setelah reset total.
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+          builder: (_) => const OnboardingScreen()),
+      (_) => false,
+    );
   }
 
   void _showError(String msg) {
@@ -702,6 +888,29 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 onTap: _restoreBackup,
               ),
               const SizedBox(height: 16),
+              _sectionTitle('Kendaraan & Target'),
+              const SizedBox(height: 8),
+              _settingCard(
+                icon: Icons.directions_car,
+                iconColor: AppColors.primary,
+                title: 'Jenis Kendaraan',
+                subtitle: _jenis.isEmpty
+                    ? 'Belum diatur'
+                    : (_plat.isEmpty
+                        ? _jenis
+                        : '$_jenis · $_plat'),
+                onTap: _editKendaraan,
+              ),
+              _settingCard(
+                icon: Icons.event_repeat,
+                iconColor: AppColors.success,
+                title: 'Target Mingguan',
+                subtitle:
+                    '${CurrencyFormatter.format(_jumlah)} · '
+                    '${WeekHelper.hariPendek[_jadwal]}',
+                onTap: _editTarget,
+              ),
+              const SizedBox(height: 16),
               _sectionTitle('Konfigurasi'),
               const SizedBox(height: 8),
               _settingCard(
@@ -726,7 +935,8 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 icon: Icons.delete_forever,
                 iconColor: AppColors.danger,
                 title: 'Reset Semua Data',
-                subtitle: 'Hapus seluruh data setoran & perbaikan',
+                subtitle:
+                    'Hapus total & kembali ke awal (onboarding)',
                 titleColor: AppColors.danger,
                 onTap: _resetData,
               ),
@@ -744,7 +954,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                           fontSize: 16,
                         )),
                     const SizedBox(height: 4),
-                    Text('v1.2.0',
+                    Text('v1.1.0',
                         style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 12)),
@@ -840,7 +1050,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       context: context,
       builder: (_) => SimpleDialog(
         title: const Text('Pilih Tahun'),
-        children: [2024, 2025, 2026, 2027].map((y) {
+        children: daftarTahun(DateTime.now().year).map((y) {
           return SimpleDialogOption(
             onPressed: () => Navigator.pop(context, y),
             child: Text('$y',
