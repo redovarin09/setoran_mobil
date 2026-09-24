@@ -66,7 +66,7 @@ class DbHelper {
     ''');
     await db.insert('konfigurasi', {
       'kunci': 'sisa_tahun_lalu',
-      'nilai': '2284584',
+      'nilai': '0',
     });
   }
 
@@ -247,6 +247,89 @@ class DbHelper {
     await d.insert(
       'konfigurasi',
       {'kunci': 'kendaraan_nama', 'nilai': nama},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // ─── KONFIGURASI BARU (FR-2, FR-24) ──────────────────
+  // jenis_kendaraan gantikan kendaraan_nama; baca fallback lama.
+
+  Future<String> getJenisKendaraan() async {
+    final d    = await db;
+    final rows = await d.query('konfigurasi',
+        where: 'kunci = ?',
+        whereArgs: ['jenis_kendaraan']);
+    if (rows.isNotEmpty) {
+      return rows.first['nilai'] as String;
+    }
+    return getKendaraanNama();
+  }
+
+  Future<void> setJenisKendaraan(String v) async {
+    final d = await db;
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'jenis_kendaraan', 'nilai': v},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String> getPlatNomor() async {
+    final d    = await db;
+    final rows = await d.query('konfigurasi',
+        where: 'kunci = ?',
+        whereArgs: ['plat_nomor']);
+    if (rows.isEmpty) return '';
+    return rows.first['nilai'] as String;
+  }
+
+  Future<void> setPlatNomor(String v) async {
+    final d = await db;
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'plat_nomor', 'nilai': v},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> getJumlahMingguan() async {
+    final d    = await db;
+    final rows = await d.query('konfigurasi',
+        where: 'kunci = ?',
+        whereArgs: ['jumlah_setoran_mingguan']);
+    if (rows.isEmpty) return 0;
+    return int.tryParse(
+            rows.first['nilai'] as String) ?? 0;
+  }
+
+  Future<void> setJumlahMingguan(int v) async {
+    final d = await db;
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'jumlah_setoran_mingguan',
+       'nilai': v.toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// 0=Minggu .. 6=Sabtu (tech-design §1), default 0.
+  Future<int> getJadwalHari() async {
+    final d    = await db;
+    final rows = await d.query('konfigurasi',
+        where: 'kunci = ?',
+        whereArgs: ['jadwal_hari']);
+    if (rows.isEmpty) return 0;
+    final v = int.tryParse(
+        rows.first['nilai'] as String) ?? 0;
+    return (v < 0 || v > 6) ? 0 : v;
+  }
+
+  Future<void> setJadwalHari(int v) async {
+    final d = await db;
+    await d.insert(
+      'konfigurasi',
+      {'kunci': 'jadwal_hari',
+       'nilai': v.clamp(0, 6).toString()},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }

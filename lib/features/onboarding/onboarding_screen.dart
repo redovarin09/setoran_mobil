@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/database/db_helper.dart';
+import 'onboarding_input.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../setoran/setoran_screen.dart';
 import '../perbaikan/perbaikan_screen.dart';
@@ -17,32 +18,33 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _db          = DbHelper();
   final _pageCtrl    = PageController();
-  final _namaCtrl    = TextEditingController();
+  final _jenisCtrl   = TextEditingController();
+  final _platCtrl    = TextEditingController();
   final _sisaCtrl    = TextEditingController();
+  final _jumlahCtrl  = TextEditingController();
   int _page          = 0;
   bool _loading      = false;
-  int _tahun         = DateTime.now().year;
+  int _jadwalHari    = 0;
 
   @override
   void dispose() {
     _pageCtrl.dispose();
-    _namaCtrl.dispose();
+    _jenisCtrl.dispose();
+    _platCtrl.dispose();
     _sisaCtrl.dispose();
+    _jumlahCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _selesai() async {
     setState(() => _loading = true);
 
-    final nama = _namaCtrl.text.trim().isEmpty
-        ? 'Kendaraan Saya'
-        : _namaCtrl.text.trim();
-    final sisa = int.tryParse(
-            _sisaCtrl.text.replaceAll('.', '').replaceAll(',', '')) ??
-        0;
-
-    await _db.setKendaraanNama(nama);
-    await _db.setSisaTahunLalu(sisa);
+    await _db.setJenisKendaraan(
+        normalisasiJenis(_jenisCtrl.text));
+    await _db.setPlatNomor(_platCtrl.text.trim());
+    await _db.setSisaTahunLalu(parseNominal(_sisaCtrl.text));
+    await _db.setJumlahMingguan(parseNominal(_jumlahCtrl.text));
+    await _db.setJadwalHari(_jadwalHari);
     await _db.setSetupDone();
 
     setState(() => _loading = false);
@@ -193,7 +195,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               size: 80, color: Colors.white),
           const SizedBox(height: 24),
           const Text(
-            'Nama Kendaraan',
+            'Jenis Kendaraan',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -202,7 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Beri nama kendaraan Anda agar lebih mudah dikenali.',
+            'Tulis jenis kendaraan dan plat nomor Anda.',
             style: TextStyle(
               fontSize: 15,
               color: Colors.white.withValues(alpha: 0.85),
@@ -210,10 +212,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 28),
           TextField(
-            controller: _namaCtrl,
+            controller: _jenisCtrl,
             style: const TextStyle(color: Colors.white, fontSize: 16),
             decoration: InputDecoration(
-              hintText: 'Contoh: Avanza Putih, B 1234 ABC',
+              hintText: 'Contoh: Avanza Putih',
               hintStyle: TextStyle(
                   color: Colors.white.withValues(alpha: 0.5)),
               enabledBorder: OutlineInputBorder(
@@ -229,6 +231,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               filled: true,
               fillColor: Colors.white.withValues(alpha: 0.1),
               prefixIcon: const Icon(Icons.directions_car,
+                  color: Colors.white70),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _platCtrl,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: 'Plat nomor (opsional): B 1234 ABC',
+              hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5)),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.4)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: Colors.white, width: 2),
+              ),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.1),
+              prefixIcon: const Icon(Icons.confirmation_number,
                   color: Colors.white70),
               contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 14),
@@ -257,7 +285,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               size: 80, color: Colors.white),
           const SizedBox(height: 24),
           const Text(
-            'Sisa Tahun Lalu',
+            'Target Setoran',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -266,39 +294,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Masukkan sisa hutang/tagihan dari tahun sebelumnya '
-            'sebagai saldo awal.',
+            'Sisa tahun lalu sebagai saldo awal, target setoran '
+            'per minggu, dan hari jatuh tempo.',
             style: TextStyle(
               fontSize: 15,
               color: Colors.white.withValues(alpha: 0.85),
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 28),
-
-          // Pilih tahun
-          Row(
-            children: [
-              Text('Tahun mulai: ',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 14)),
-              const SizedBox(width: 8),
-              DropdownButton<int>(
-                value: _tahun,
-                dropdownColor: AppColors.primaryDark,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
-                underline: Container(height: 1, color: Colors.white54),
-                items: [2024, 2025, 2026, 2027].map((y) {
-                  return DropdownMenuItem(
-                      value: y, child: Text('$y'));
-                }).toList(),
-                onChanged: (y) => setState(() => _tahun = y!),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
           TextField(
             controller: _sisaCtrl,
@@ -306,7 +310,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             style: const TextStyle(color: Colors.white, fontSize: 16),
             decoration: InputDecoration(
-              hintText: '0',
+              hintText: 'Sisa tahun lalu (0 jika tidak ada)',
               hintStyle: TextStyle(
                   color: Colors.white.withValues(alpha: 0.5)),
               prefixText: 'Rp  ',
@@ -327,6 +331,77 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 14),
             ),
+          ),
+          const SizedBox(height: 12),
+
+          TextField(
+            controller: _jumlahCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: 'Setoran per minggu',
+              hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5)),
+              prefixText: 'Rp  ',
+              prefixStyle: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w500),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.4)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: Colors.white, width: 2),
+              ),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.1),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Jadwal setoran tiap minggu:',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(7, (i) {
+              final selected = i == _jadwalHari;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _jadwalHari = i),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      labelJadwalHari[i],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: selected
+                            ? AppColors.primary
+                            : Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
           const SizedBox(height: 12),
           Text(
