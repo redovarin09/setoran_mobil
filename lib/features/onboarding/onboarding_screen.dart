@@ -116,6 +116,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
+                  key: const ValueKey('onboardingNext'),
                   onPressed: _loading ? null : _nextPage,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -212,6 +213,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 28),
           TextField(
+            key: const ValueKey('onboardingJenis'),
             controller: _jenisCtrl,
             style: const TextStyle(color: Colors.white, fontSize: 16),
             decoration: InputDecoration(
@@ -238,6 +240,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 12),
           TextField(
+            key: const ValueKey('onboardingPlat'),
             controller: _platCtrl,
             style: const TextStyle(color: Colors.white, fontSize: 16),
             decoration: InputDecoration(
@@ -305,6 +308,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 20),
 
           TextField(
+            key: const ValueKey('onboardingSisa'),
             controller: _sisaCtrl,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -335,6 +339,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 12),
 
           TextField(
+            key: const ValueKey('onboardingJumlah'),
             controller: _jumlahCtrl,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -376,6 +381,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               final selected = i == _jadwalHari;
               return Expanded(
                 child: GestureDetector(
+                  key: ValueKey('jadwalHari-$i'),
                   onTap: () => setState(() => _jadwalHari = i),
                   child: Container(
                     margin: const EdgeInsets.only(right: 6),
@@ -474,6 +480,7 @@ class _MainNavState extends State<_MainNav> {
           ],
         ),
         child: BottomNavigationBar(
+          key: const ValueKey('navBar'),
           currentIndex: _idx,
           onTap: (i) => setState(() => _idx = i),
           type: BottomNavigationBarType.fixed,

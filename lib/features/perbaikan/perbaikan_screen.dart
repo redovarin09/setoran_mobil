@@ -96,6 +96,7 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
         backgroundColor: AppColors.primary,
         title: _showSearch
             ? TextField(
+                key: const ValueKey('perbaikanSearch'),
                 controller: _searchCtrl,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
@@ -188,6 +189,7 @@ class _PerbaikanScreenState extends State<PerbaikanScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        key: const ValueKey('perbaikanFab'),
         onPressed: () => _openSheet(),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),

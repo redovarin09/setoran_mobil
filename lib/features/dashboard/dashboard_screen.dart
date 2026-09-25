@@ -209,6 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildGrandTotalCard() {
     return Container(
+      key: const ValueKey('dashboardGrandTotal'),
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

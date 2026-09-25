@@ -208,6 +208,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                   _label('Jenis Perbaikan *'),
                   const SizedBox(height: 6),
                   TextFormField(
+                    key: const ValueKey('perbaikanJenis'),
                     controller: _jenisCtrl,
                     decoration: const InputDecoration(
                       hintText: 'Contoh: Servis Rutin, Oli...',
@@ -272,6 +273,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
 
                   // Biaya
                   CurrencyInput(
+                    key: const ValueKey('perbaikanBiaya'),
                     label: 'Biaya Perbaikan',
                     initialValue: _biaya,
                     isRequired: true,
@@ -341,6 +343,7 @@ class _InputPerbaikanSheetState extends State<InputPerbaikanSheet> {
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
+                          key: const ValueKey('perbaikanSimpan'),
                           onPressed: _loading ? null : _simpan,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(

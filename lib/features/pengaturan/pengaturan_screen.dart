@@ -922,6 +922,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 onTap: _exportBackup,
               ),
               _settingCard(
+                e2eKey: const ValueKey('pengaturanExportExcel'),
                 icon: Icons.table_chart,
                 iconColor: const Color(0xFF1B5E20),
                 title: 'Export ke Excel (.xlsx)',
@@ -930,6 +931,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 onTap: _exportExcel,
               ),
               _settingCard(
+                e2eKey: const ValueKey('pengaturanRestore'),
                 icon: Icons.download_for_offline,
                 iconColor: AppColors.success,
                 title: 'Restore / Import',
@@ -982,6 +984,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
               _sectionTitle('Zona Berbahaya'),
               const SizedBox(height: 8),
               _settingCard(
+                e2eKey: const ValueKey('pengaturanReset'),
                 icon: Icons.delete_forever,
                 iconColor: AppColors.danger,
                 title: 'Reset Semua Data',
@@ -1065,8 +1068,10 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     required VoidCallback onTap,
     Widget? trailing,
     Color? titleColor,
+    Key? e2eKey,
   }) =>
       Card(
+        key: e2eKey,
         margin: const EdgeInsets.only(bottom: 8),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12)),

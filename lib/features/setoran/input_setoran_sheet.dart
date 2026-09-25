@@ -271,6 +271,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                   ),
 
                   CurrencyInput(
+                    key: const ValueKey('setoranNominal'),
                     label: 'Nominal Setoran',
                     initialValue: _setoran,
                     isRequired: true,
@@ -278,6 +279,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                   ),
 
                   CurrencyInput(
+                    key: const ValueKey('setoranPotongan'),
                     label: 'Potongan (manual)',
                     initialValue: _potongan,
                     onChanged: (v) => setState(() => _potongan = v),
@@ -325,6 +327,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                   ),
                   const SizedBox(height: 6),
                   CurrencyInput(
+                    key: const ValueKey('setoranCicilan'),
                     label: _isKoreksi
                         ? 'Nominal koreksi'
                         : 'Nominal cicilan',
@@ -480,6 +483,7 @@ class _InputSetoranSheetState extends State<InputSetoranSheet> {
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
+                          key: const ValueKey('setoranSimpan'),
                           onPressed: _loading ? null : _simpan,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(

@@ -292,6 +292,7 @@ class _SetoranScreenState extends State<SetoranScreen> {
         ),
       ),
       child: InkWell(
+        key: ValueKey('setoranCard-$minggu'),
         borderRadius: BorderRadius.circular(12),
         onTap: () => _openSheet(minggu),
         child: Padding(

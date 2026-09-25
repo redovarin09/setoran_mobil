@@ -179,6 +179,7 @@ class _MainNavigationState extends State<MainNavigation> {
           ],
         ),
         child: BottomNavigationBar(
+          key: const ValueKey('navBar'),
           currentIndex: _idx,
           onTap: (i) => setState(() => _idx = i),
           type: BottomNavigationBarType.fixed,
