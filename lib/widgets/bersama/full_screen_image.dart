@@ -59,10 +59,12 @@ class _FullScreenImageGalleryState
 
   Future<void> _share() async {
     final path = widget.imagePaths[_currentIndex];
-    await Share.shareXFiles(
-      [XFile(path)],
-      text: '${widget.title} (${_currentIndex + 1}'
-          '/${widget.imagePaths.length})',
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path)],
+        text: '${widget.title} (${_currentIndex + 1}'
+            '/${widget.imagePaths.length})',
+      ),
     );
   }
 
