@@ -1,3 +1,6 @@
+import org.gradle.api.Action
+import org.gradle.api.Project
+
 allprojects {
     repositories {
         google()
@@ -43,11 +46,13 @@ fun Project.paksaCompileSdk36() {
     }
 }
 
-gradle.beforeProject { target ->
-    target.pluginManager.withPlugin("com.android.library") {
-        target.paksaCompileSdk36()
+gradle.beforeProject(object : Action<Project> {
+    override fun execute(target: Project) {
+        target.pluginManager.withPlugin("com.android.library") {
+            target.paksaCompileSdk36()
+        }
     }
-}
+})
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
