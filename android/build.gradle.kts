@@ -38,7 +38,7 @@ subprojects {
             }
         } catch (e: Exception) {
             logger.warn(
-                "[root] lewati paksa compileSdk "
+                "[root] lewati paksa compileSdk " +
                 "untuk ${project.name}: ${e.message}")
         }
     }
