@@ -20,27 +20,32 @@ subprojects {
 }
 
 // Plugin lama (mis. file_picker 8, compileSdk 34) gagal build saat
-// dependensinya menuntut compileSdk 36. Paksa 36 ke semua subproject
-// via refleksi (tanpa import kelas AGP agar script selalu kompilasi):
-// API yang dipakai plugin stabil, dibuktikan build CI.
-subprojects {
-    afterEvaluate {
-        val androidExt = project.extensions.findByName("android")
-            ?: return@afterEvaluate
-        try {
-            val getter =
-                androidExt.javaClass.getMethod("getCompileSdk")
-            val setter = androidExt.javaClass.getMethod(
-                "setCompileSdk", Int::class.javaPrimitiveType)
-            val current = getter.invoke(androidExt) as? Int ?: 0
-            if (current in 1..35) {
-                setter.invoke(androidExt, 36)
-            }
-        } catch (e: Exception) {
-            logger.warn(
-                "[root] lewati paksa compileSdk " +
-                "untuk ${project.name}: ${e.message}")
+// dependensinya menuntut compileSdk 36. Paksa 36 ke modul library
+// sebelum dievaluasi, via refleksi (tanpa import kelas AGP agar
+// script selalu kompilasi). API yang dipakai plugin stabil,
+// dibuktikan build CI.
+fun Project.paksaCompileSdk36() {
+    val androidExt = project.extensions.findByName("android")
+        ?: return
+    try {
+        val getter =
+            androidExt.javaClass.getMethod("getCompileSdk")
+        val setter = androidExt.javaClass.getMethod(
+            "setCompileSdk", Int::class.javaPrimitiveType)
+        val current = getter.invoke(androidExt) as? Int ?: 0
+        if (current in 1..35) {
+            setter.invoke(androidExt, 36)
         }
+    } catch (e: Exception) {
+        logger.warn(
+            "[root] lewati paksa compileSdk " +
+            "untuk ${project.name}: ${e.message}")
+    }
+}
+
+gradle.beforeProject { target ->
+    target.pluginManager.withPlugin("com.android.library") {
+        target.paksaCompileSdk36()
     }
 }
 
