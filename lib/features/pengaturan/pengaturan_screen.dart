@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -148,7 +149,33 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
             const Divider(height: 8),
 
-            // Opsi 2: Paste JSON
+            // Opsi 2: Pilih file (SAF — tanpa izin khusus,
+            // jalan di semua Android termasuk 13+)
+            ListTile(
+              onTap: () {
+                Navigator.pop(context);
+                _restoreFromPicker();
+              },
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.file_open,
+                    color: AppColors.warning),
+              ),
+              title: const Text('Pilih File Backup…',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text(
+                  'Cari file .json lewat pemilih file sistem'),
+              trailing: const Icon(Icons.chevron_right,
+                  color: AppColors.textLight),
+            ),
+
+            const Divider(height: 8),
+
+            // Opsi 3: Paste JSON
             ListTile(
               onTap: () {
                 Navigator.pop(context);
@@ -323,6 +350,25 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         ],
       ),
     );
+  }
+
+  // ─── RESTORE: PEMILIH FILE SISTEM (SAF) ──────────
+
+  Future<void> _restoreFromPicker() async {
+    setState(() => _loading = true);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      final path = result?.files.single.path;
+      if (path == null) return;
+      await _prosesRestore(File(path));
+    } catch (e) {
+      _showError('Gagal memilih file: $e');
+    } finally {
+      setState(() => _loading = false);
+    }
   }
 
   // ─── RESTORE: PASTE JSON ───────────────────────────
