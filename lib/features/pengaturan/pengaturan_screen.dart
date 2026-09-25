@@ -66,10 +66,12 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       final file    = File('${dir.path}/$fileName');
       await file.writeAsString(jsonStr);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'Backup Setoran $_tahun — simpan file ini!',
-        subject: fileName,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'Backup Setoran $_tahun — simpan file ini!',
+          subject: fileName,
+        ),
       );
     } catch (e) {
       _showError('Gagal export: $e');
