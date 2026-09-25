@@ -66,10 +66,12 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       final file    = File('${dir.path}/$fileName');
       await file.writeAsString(jsonStr);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'Backup Setoran $_tahun — simpan file ini!',
-        subject: fileName,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'Backup Setoran $_tahun — simpan file ini!',
+          subject: fileName,
+        ),
       );
     } catch (e) {
       _showError('Gagal export: $e');
@@ -357,11 +359,13 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   Future<void> _restoreFromPicker() async {
     setState(() => _loading = true);
     try {
-      final result = await FilePicker.platform.pickFiles(
+      // file_picker v12+: statik, kembalikan List langsung.
+      final files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
-      final path = result?.files.single.path;
+      if (files.isEmpty) return;
+      final path = files.first.path;
       if (path == null) return;
       await _prosesRestore(File(path));
     } catch (e) {

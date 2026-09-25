@@ -191,10 +191,12 @@ class ExcelExporter {
     final path    = '${dir.path}/Setoran_${aman}_$tahun.xlsx';
     await File(path).writeAsBytes(bytes);
 
-    await Share.shareXFiles(
-      [XFile(path)],
-      text: 'Laporan Setoran $namaKend $tahun',
-      subject: 'Setoran_${aman}_$tahun.xlsx',
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path)],
+        text: 'Laporan Setoran $namaKend $tahun',
+        subject: 'Setoran_${aman}_$tahun.xlsx',
+      ),
     );
   }
 }
